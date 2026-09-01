@@ -1,10 +1,11 @@
-"""Deterministic Financial Analysis Engine orchestrating all financial modules."""
+"""Deterministic Financial Analysis Engine orchestrating all financial and DCF modules."""
 import argparse
 import json
 import sys
 from typing import List, Optional
 
 from app.financial.cash_flow import calculate_cash_flow_analysis
+from app.financial.dcf import calculate_dcf_valuation
 from app.financial.growth import calculate_growth_analysis
 from app.financial.health import evaluate_financial_health
 from app.financial.leverage import calculate_leverage_analysis
@@ -18,7 +19,7 @@ from app.utils.logging import logger
 class FinancialAnalysisEngine:
     """
     Engine executing deterministic, mathematical financial calculations across growth,
-    profitability, leverage, cash flow, valuation multiples, and financial health.
+    profitability, leverage, cash flow, valuation multiples, DCF valuation, and health.
     """
 
     @staticmethod
@@ -69,7 +70,13 @@ class FinancialAnalysisEngine:
 
         return trends
 
-    def analyze(self, company_data: CompanyData) -> FinancialAnalysis:
+    def analyze(
+        self,
+        company_data: CompanyData,
+        risk_free_rate_override: Optional[float] = None,
+        terminal_growth_override: Optional[float] = None,
+        equity_risk_premium_override: Optional[float] = None,
+    ) -> FinancialAnalysis:
         """
         Transforms normalized CompanyData into structured, explainable FinancialAnalysis.
         Purely deterministic with zero LLM or synthetic approximations.
@@ -92,10 +99,20 @@ class FinancialAnalysisEngine:
             company_data.market_data, financials, sector=sector
         )
 
-        # 2. Build structured historical trends time-series
+        # 2. Execute deterministic DCF valuation
+        dcf = calculate_dcf_valuation(
+            market_data=company_data.market_data,
+            financials=financials,
+            sector=sector,
+            risk_free_rate_override=risk_free_rate_override,
+            terminal_growth_override=terminal_growth_override,
+            equity_risk_premium_override=equity_risk_premium_override,
+        )
+
+        # 3. Build structured historical trends time-series
         trends = self._build_historical_trends(financials)
 
-        # 3. Evaluate deterministic health synthesis
+        # 4. Evaluate deterministic health synthesis
         health = evaluate_financial_health(
             growth=growth,
             profitability=profitability,
@@ -104,12 +121,14 @@ class FinancialAnalysisEngine:
             sector=sector,
         )
 
-        # 4. Consolidate engine warnings
+        # 5. Consolidate engine warnings
         all_warnings: List[str] = []
         for dw in company_data.data_warnings:
             all_warnings.append(f"[{dw.provider}] {dw.field}: {dw.message}")
         for w in health.warnings:
             all_warnings.append(f"[HEALTH] {w}")
+        for w in dcf.warnings:
+            all_warnings.append(f"[DCF] {w}")
 
         return FinancialAnalysis(
             ticker=ticker,
@@ -122,6 +141,7 @@ class FinancialAnalysisEngine:
             leverage=leverage,
             cash_flow=cash_flow,
             valuation=valuation,
+            dcf=dcf,
             historical_trends=trends,
             health=health,
             warnings=all_warnings,
@@ -133,6 +153,8 @@ def main():
     parser = argparse.ArgumentParser(description="Run Deterministic Financial Analysis Engine.")
     parser.add_argument("ticker", type=str, help="Stock ticker symbol (e.g. AAPL, MSFT, JPM)")
     parser.add_argument("--json", action="store_true", help="Output full JSON analysis")
+    parser.add_argument("--rf", type=float, default=None, help="Optional Risk-Free Rate override (e.g. 0.045)")
+    parser.add_argument("--g", type=float, default=None, help="Optional Terminal Growth override (e.g. 0.025)")
     args = parser.parse_args()
 
     from app.data.orchestrator import DataOrchestrator
@@ -145,7 +167,11 @@ def main():
         sys.exit(1)
 
     engine = FinancialAnalysisEngine()
-    analysis = engine.analyze(data)
+    analysis = engine.analyze(
+        data,
+        risk_free_rate_override=args.rf,
+        terminal_growth_override=args.g,
+    )
 
     if args.json:
         print(analysis.model_dump_json(indent=2))
@@ -157,14 +183,15 @@ def main():
     l = analysis.leverage
     cf = analysis.cash_flow
     v = analysis.valuation
+    dcf = analysis.dcf
     h = analysis.health
 
-    print("\n" + "=" * 70)
+    print("\n" + "=" * 72)
     print(f" FINANCIAL ANALYSIS REPORT: {analysis.ticker} — {analysis.company_name}")
-    print("=" * 70)
+    print("=" * 72)
     print(f" Sector: {analysis.sector or 'N/A'} | Industry: {analysis.industry or 'N/A'}")
     print(f" Overall Financial Health: [{h.overall.upper()}]")
-    print("-" * 70)
+    print("-" * 72)
     print(" 1. GROWTH ANALYSIS:")
     rev_g = f"{g.revenue_growth_yoy:.1%}" if g.revenue_growth_yoy is not None else "N/A"
     cagr_str = f"{g.revenue_cagr_3yr:.1%}" if g.revenue_cagr_3yr is not None else "N/A"
@@ -172,7 +199,7 @@ def main():
     fcf_g = f"{g.fcf_growth_yoy:.1%}" if g.fcf_growth_yoy is not None else "N/A"
     print(f"  * Revenue YoY: {rev_g:<10} | 3-Yr Rev CAGR: {cagr_str:<10}")
     print(f"  * Net Income YoY: {ni_g:<7} | FCF YoY: {fcf_g}")
-    print("-" * 70)
+    print("-" * 72)
     print(" 2. PROFITABILITY & RETURNS:")
     op_m = f"{p.operating_margin:.1%}" if p.operating_margin is not None else "N/A"
     net_m = f"{p.net_margin:.1%}" if p.net_margin is not None else "N/A"
@@ -180,21 +207,21 @@ def main():
     roic = f"{p.roic:.1%}" if p.roic is not None else "N/A"
     print(f"  * Operating Margin: {op_m:<8} | Net Margin: {net_m:<8}")
     print(f"  * ROE (Avg Equity): {roe:<8} | ROIC: {roic}")
-    print("-" * 70)
+    print("-" * 72)
     print(" 3. LEVERAGE & SOLVENCY:")
     de = f"{l.debt_to_equity:.2f}x" if l.debt_to_equity is not None else "N/A"
     debt_str = f"${l.total_debt:,.0f}" if l.total_debt is not None else "N/A"
     equity_str = f"${l.stockholders_equity:,.0f}" if l.stockholders_equity is not None else "N/A"
     print(f"  * Debt-to-Equity: {de:<10} | Total Debt: {debt_str}")
     print(f"  * Stockholders' Equity: {equity_str}")
-    print("-" * 70)
+    print("-" * 72)
     print(" 4. CASH FLOW GENERATION:")
     fcf_str = f"${cf.free_cash_flow:,.0f}" if cf.free_cash_flow is not None else "N/A"
     fcf_m = f"{cf.fcf_margin:.1%}" if cf.fcf_margin is not None else "N/A"
     fcf_c = f"{cf.fcf_conversion:.1%}" if cf.fcf_conversion is not None else "N/A"
     print(f"  * Free Cash Flow: {fcf_str:<18} | FCF Margin: {fcf_m}")
     print(f"  * FCF Conversion (FCF/NI): {fcf_c}")
-    print("-" * 70)
+    print("-" * 72)
     print(" 5. VALUATION MULTIPLES:")
     pe = f"{v.pe_ratio:.2f}x" if v.pe_ratio is not None else "N/A"
     fwd_pe = f"{v.forward_pe:.2f}x" if v.forward_pe is not None else "N/A"
@@ -203,17 +230,54 @@ def main():
     pfcf = f"{v.price_to_fcf:.2f}x" if v.price_to_fcf is not None else "N/A"
     print(f"  * Trailing P/E: {pe:<10} | Forward P/E: {fwd_pe:<10} | EV/EBITDA: {ev_ebitda}")
     print(f"  * Price-to-Sales: {ps:<8} | Price-to-FCF: {pfcf}")
-    print("-" * 70)
-    print(" 6. FINANCIAL HEALTH OBSERVATIONS:")
+    print("-" * 72)
+    print(f" 6. DCF VALUATION & SENSITIVITY [{dcf.status.upper()}]:")
+    if dcf.status == "calculated":
+        wacc_str = f"{dcf.wacc:.2%}" if dcf.wacc is not None else "N/A"
+        ke_str = f"{dcf.cost_of_equity:.2%}" if dcf.cost_of_equity is not None else "N/A"
+        kd_str = f"{dcf.after_tax_cost_of_debt:.2%}" if dcf.after_tax_cost_of_debt is not None else "N/A"
+        fcf_g_str = f"{dcf.fcf_growth_assumption:.1%}" if dcf.fcf_growth_assumption is not None else "N/A"
+        tg_str = f"{dcf.terminal_growth_rate:.1%}" if dcf.terminal_growth_rate is not None else "N/A"
+        ev_str = f"${dcf.enterprise_value:,.0f}" if dcf.enterprise_value is not None else "N/A"
+        eq_val_str = f"${dcf.equity_value:,.0f}" if dcf.equity_value is not None else "N/A"
+        imp_p = f"${dcf.implied_share_price:.2f}" if dcf.implied_share_price is not None else "N/A"
+        curr_p = f"${dcf.current_share_price:.2f}" if dcf.current_share_price is not None else "N/A"
+        up_down = f"{dcf.upside_downside_pct:+.1f}%" if dcf.upside_downside_pct is not None else "N/A"
+
+        print(f"  * WACC: {wacc_str} (Cost of Equity: {ke_str}, Cost of Debt: {kd_str})")
+        print(f"  * Growth Assumptions: 5-Yr FCF Forecast: {fcf_g_str} | Terminal Growth: {tg_str}")
+        print(f"  * Enterprise Value: {ev_str} | Equity Value: {eq_val_str}")
+        print(f"  * Current Market Price: {curr_p} | Implied Intrinsic Value: {imp_p}")
+        print(f"  * Model-Implied Upside/Downside: {up_down}")
+
+        # Preview Sensitivity Matrix (middle slice)
+        if dcf.sensitivity_table and dcf.sensitivity_table.grid:
+            st = dcf.sensitivity_table
+            print("  --- 2D Sensitivity Grid (Implied Price vs WACC & Terminal Growth) ---")
+            header_str = "    WACC \\ g | " + " | ".join(f"{tg:.1%}" for tg in st.terminal_growth_range[1:5])
+            print(header_str)
+            for w, row in zip(st.wacc_range[1:5], st.grid[1:5]):
+                row_str = f"      {w:.1%}   | " + " | ".join(f"${val:>6.2f}" if val is not None else "   N/A" for val in row[1:5])
+                print(row_str)
+    elif dcf.status == "not_applicable":
+        print("  * Sector Gated: Commercial banks / Financial institutions do not utilize industrial FCF DCF.")
+        print("  * Recommendation: Value via P/E, P/B, and ROE comparative multiples.")
+    else:
+        print(f"  * DCF Status: {dcf.status.upper()}")
+        for w in dcf.warnings:
+            print(f"    [!] {w}")
+
+    print("-" * 72)
+    print(" 7. FINANCIAL HEALTH OBSERVATIONS:")
     print(f"  Pillars: Growth: {h.growth_pillar} | Profitability: {h.profitability_pillar} | Leverage: {h.leverage_pillar} | Cash Flow: {h.cash_flow_pillar}")
     for obs in h.key_observations:
         print(f"  * {obs}")
     if analysis.warnings:
-        print("-" * 70)
+        print("-" * 72)
         print(f" WARNINGS & CAVEATS ({len(analysis.warnings)}):")
         for w in analysis.warnings[:3]:
             print(f"  [!] {w}")
-    print("=" * 70 + "\n")
+    print("=" * 72 + "\n")
 
 
 if __name__ == "__main__":
