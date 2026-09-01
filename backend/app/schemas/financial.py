@@ -1,4 +1,4 @@
-﻿"""Normalized financial data schemas."""
+"""Normalized financial data schemas."""
 from datetime import datetime, timezone
 from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator
@@ -38,6 +38,7 @@ class HistoricalFinancial(BaseModel):
     total_liabilities: Optional[float] = Field(default=None, description="Total Liabilities")
     total_debt: Optional[float] = Field(default=None, description="Short-Term + Long-Term Debt")
     stockholders_equity: Optional[float] = Field(default=None, description="Stockholders' Equity")
+    cash_and_equivalents: Optional[float] = Field(default=None, description="Cash & Cash Equivalents")
     
     source: str = "SEC_EDGAR"
     currency: str = "USD"
@@ -57,6 +58,8 @@ class MarketData(BaseModel):
     ev_to_ebitda: Optional[float] = None
     enterprise_value: Optional[float] = None
     dividend_yield: Optional[float] = None
+    total_cash: Optional[float] = Field(default=None, description="Total Cash & Short Term Investments")
+    total_debt: Optional[float] = Field(default=None, description="Total Debt reported by market quote")
     source: str = "yfinance"
     currency: str = "USD"
 

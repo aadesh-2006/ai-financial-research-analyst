@@ -1,4 +1,4 @@
-﻿"""SEC EDGAR API Client for company financials retrieval and XBRL normalization."""
+"""SEC EDGAR API Client for company financials retrieval and XBRL normalization."""
 import json
 import os
 import time
@@ -56,6 +56,13 @@ STOCKHOLDERS_EQUITY_TAGS = [
     "StockholdersEquity",
     "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
     "CommonStockholdersEquity",
+]
+
+CASH_TAGS = [
+    "CashAndCashEquivalentsAtCarryingValue",
+    "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+    "CashAndCashEquivalents",
+    "Cash",
 ]
 
 # Debt components
@@ -304,6 +311,7 @@ class SECEdgarClient:
         assets_map, _ = self._extract_annual_series(us_gaap, TOTAL_ASSETS_TAGS)
         liab_map, _ = self._extract_annual_series(us_gaap, TOTAL_LIABILITIES_TAGS)
         equity_map, _ = self._extract_annual_series(us_gaap, STOCKHOLDERS_EQUITY_TAGS)
+        cash_map, _ = self._extract_annual_series(us_gaap, CASH_TAGS)
         
         # Debt extraction
         lt_debt_map, _ = self._extract_annual_series(us_gaap, DEBT_LONG_TERM_TAGS)
@@ -335,6 +343,7 @@ class SECEdgarClient:
             assets_val, _ = assets_map.get(year, (None, None))
             liab_val, _ = liab_map.get(year, (None, None))
             equity_val, _ = equity_map.get(year, (None, None))
+            cash_val, _ = cash_map.get(year, (None, None))
 
             # Normalize Capex as positive cash outflow
             capex_val = abs(raw_capex) if raw_capex is not None else None
@@ -369,6 +378,7 @@ class SECEdgarClient:
                 total_liabilities=liab_val,
                 total_debt=total_debt,
                 stockholders_equity=equity_val,
+                cash_and_equivalents=cash_val,
                 source="SEC_EDGAR",
                 currency="USD",
             )

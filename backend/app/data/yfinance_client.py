@@ -1,4 +1,4 @@
-﻿"""yfinance market data client and normalizer."""
+"""yfinance market data client and normalizer."""
 import math
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -72,6 +72,8 @@ class YFinanceClient:
             ev_ebitda = self._clean_float(info.get("enterpriseToEbitda"))
             ev = self._clean_float(info.get("enterpriseValue"))
             div_yield = self._clean_float(info.get("dividendYield"))
+            total_cash = self._clean_float(info.get("totalCash"))
+            total_debt = self._clean_float(info.get("totalDebt"))
             currency = str(info.get("currency") or "USD").upper()
 
             market_data = MarketData(
@@ -87,6 +89,8 @@ class YFinanceClient:
                 ev_to_ebitda=ev_ebitda,
                 enterprise_value=ev,
                 dividend_yield=div_yield,
+                total_cash=total_cash,
+                total_debt=total_debt,
                 source="yfinance",
                 currency=currency,
             )
