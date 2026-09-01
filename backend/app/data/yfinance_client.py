@@ -24,6 +24,14 @@ class YFinanceClient:
         except (ValueError, TypeError):
             return None
 
+    def _resolve_first_valid(self, info: Dict[str, Any], keys: List[str]) -> Optional[float]:
+        """Iterates through keys and returns the first valid non-NaN float."""
+        for k in keys:
+            val = self._clean_float(info.get(k))
+            if val is not None:
+                return val
+        return None
+
     def get_market_data(
         self, ticker: str
     ) -> Tuple[Optional[MarketData], Optional[CompanyProfile], List[DataWarning]]:
@@ -51,18 +59,13 @@ class YFinanceClient:
                 )
                 return None, None, warnings
 
-            # Current price resolution hierarchy
-            price = self._clean_float(
-                info.get("currentPrice")
-                or info.get("regularMarketPrice")
-                or info.get("ask")
-                or info.get("bid")
-            )
-            prev_close = self._clean_float(info.get("regularMarketPreviousClose") or info.get("previousClose"))
+            # Current price resolution hierarchy (handles NaN truthiness cleanly)
+            price = self._resolve_first_valid(info, ["currentPrice", "regularMarketPrice", "ask", "bid"])
+            prev_close = self._resolve_first_valid(info, ["regularMarketPreviousClose", "previousClose"])
             high_52 = self._clean_float(info.get("fiftyTwoWeekHigh"))
             low_52 = self._clean_float(info.get("fiftyTwoWeekLow"))
             mkt_cap = self._clean_float(info.get("marketCap"))
-            shares_out = self._clean_float(info.get("sharesOutstanding") or info.get("impliedSharesOutstanding"))
+            shares_out = self._resolve_first_valid(info, ["sharesOutstanding", "impliedSharesOutstanding"])
             beta = self._clean_float(info.get("beta"))
             pe = self._clean_float(info.get("trailingPE"))
             fwd_pe = self._clean_float(info.get("forwardPE"))
