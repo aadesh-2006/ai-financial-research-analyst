@@ -72,12 +72,78 @@ A modular, production-quality financial intelligence platform combining multi-so
                                      │  - Strengths, Risks, Catalysts│
                                      │  - Grounded DCF Interpretation│
                                      │  - Programmatic Guardrails    │
+                                     └───────────────┬───────────────┘
+                                                     │
+                                                     ▼
+                                     ┌───────────────────────────────┐
+                                     │       FastAPI REST API        │
+                                     │  - GET  /api/health           │
+                                     │  - POST /api/analyze          │
+                                     │  - POST /api/research         │
+                                     │  - Swagger Docs (/docs)       │
                                      └───────────────────────────────┘
 ```
 
 ---
 
-## 2. Milestone 4: Grounded LLM Research Layer
+## 2. Milestone 5: FastAPI Backend API Layer
+
+The API layer is implemented as a thin, asynchronous orchestration service using FastAPI. It exposes both the deterministic financial engine and the grounded AI research layer to web clients.
+
+### A. Endpoint Specifications & Contracts
+
+#### 1. `GET /api/health`
+Lightweight health check for liveness probes. Does **not** require external API calls or credentials.
+```json
+// Response: 200 OK
+{
+  "status": "ok",
+  "service": "ai-financial-research-analyst"
+}
+```
+
+#### 2. `POST /api/analyze`
+Executes multi-source data ingestion and deterministic financial calculations.
+- **Independence**: Fully operational **without** `OPENAI_API_KEY`.
+- **Payload**:
+  ```json
+  { "ticker": "AAPL" }
+  ```
+- **Response (`AnalyzeResponse`)**: Extends `FinancialAnalysis` with company description and website. Returns full growth metrics, margin analysis, leverage ratios, cash flow conversion, market valuation multiples, financial health ratings, and model-implied DCF valuation (or `status: not_applicable` for banks like JPM).
+
+#### 3. `POST /api/research`
+Coordinates ingestion, deterministic analysis, and grounded LLM research synthesis.
+- **Payload**:
+  ```json
+  { "ticker": "AAPL" }
+  ```
+- **Response (`ResearchReport`)**: Institutional investment research memo including executive summary, investment thesis, anchored quantitative snapshots, risk factors, catalysts, grounded DCF interpretation, and verified source citations.
+
+### B. Standardized Error Handling
+All errors return consistent, sanitized JSON payloads:
+```json
+{
+  "error": {
+    "code": "OPENAI_API_KEY_MISSING",
+    "message": "AI research synthesis is unavailable because OPENAI_API_KEY is not configured."
+  }
+}
+```
+- **`400 Bad Request` (`INVALID_REQUEST`)**: Malformed payload, empty ticker, or invalid ticker characters.
+- **`404 Not Found` (`TICKER_NOT_FOUND`)**: Upstream data providers have no record or filings for the requested symbol.
+- **`502 Bad Gateway` (`UPSTREAM_DATA_ERROR` / `OPENAI_API_ERROR`)**: Upstream network failure to SEC EDGAR, market quotes, or OpenAI servers.
+- **`503 Service Unavailable` (`OPENAI_API_KEY_MISSING` / `OPENAI_RATE_LIMIT`)**: Missing credentials or OpenAI quota exhaustion.
+- **`504 Gateway Timeout` (`OPENAI_TIMEOUT`)**: Upstream LLM provider request timeout.
+- **`500 Internal Server Error` (`INTERNAL_SERVER_ERROR`)**: Unexpected exceptions. Stack traces and internal secrets are logged server-side and never leaked.
+
+### C. CORS Configuration
+Configured via `Settings.cors_allowed_origins` in `backend/app/config.py` to allow frontend clients:
+- Default development origins: `http://localhost:3000`, `http://localhost:5173`, `http://127.0.0.1:3000`, `http://127.0.0.1:5173`.
+- Strict preflight handling for `OPTIONS`, `GET`, `POST`.
+
+---
+
+## 3. Milestone 4: Grounded LLM Research Layer
 
 > **Critical Design Principle:**
 > The deterministic financial engine remains the **single source of truth** for all numerical analysis.
@@ -151,11 +217,21 @@ The DCF valuation engine is implemented as deterministic Python logic. It produc
 
 ---
 
-## 4. Local Execution & CLI Commands
+## 5. Local Execution & CLI Commands
 
-### Run Grounded LLM Research Memo on any Ticker
+### Start FastAPI Backend Server (Uvicorn)
 ```powershell
 # Windows PowerShell
+$env:PYTHONPATH="backend"
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
+
+# Access interactive documentation:
+# Swagger UI: http://localhost:8000/docs
+# ReDoc:      http://localhost:8000/redoc
+```
+
+### Run Grounded LLM Research Memo via CLI
+```powershell
 $env:PYTHONPATH="backend"
 
 # Run end-to-end research synthesis (or graceful missing-key prompt)
@@ -174,7 +250,7 @@ $env:PYTHONPATH="backend"
 .\.venv\Scripts\python.exe -m app.financial.engine MSFT --rf 0.045 --g 0.025
 ```
 
-### Run Automated Test Suite (63 Tests)
+### Run Automated Test Suite (78 Tests)
 ```powershell
 $env:PYTHONPATH="backend"
 .\.venv\Scripts\pytest.exe backend/tests -v
@@ -182,14 +258,14 @@ $env:PYTHONPATH="backend"
 
 ---
 
-## 5. Project Roadmap
+## 6. Project Roadmap
 
 - [x] **Milestone 0**: Environment inspection, architecture blueprint, and schema design.
 - [x] **Milestone 1**: Data ingestion pipeline (SEC EDGAR, yfinance, News) & normalization.
 - [x] **Milestone 2**: Deterministic financial analysis engine (growth, margins, leverage, cash flow, health).
 - [x] **Milestone 3**: Valuation engine (DCF, WACC, Terminal Value, 2D sensitivity analysis, sector gating).
 - [x] **Milestone 4**: Grounded LLM research layer (OpenAI structured outputs, 11 grounding rules, memo).
-- [ ] **Milestone 5**: FastAPI backend endpoints (`/api/analyze`, `/api/health`).
+- [x] **Milestone 5**: FastAPI backend endpoints (`/api/analyze`, `/api/health`, `/api/research`).
 - [ ] **Milestone 6**: React + TypeScript + Tailwind dashboard with Recharts.
 - [ ] **Milestone 7**: PostgreSQL persistence and caching.
 - [ ] **Milestone 8**: Error handling, resilience, and edge case hardening.
