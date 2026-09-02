@@ -248,6 +248,14 @@ $env:PYTHONPATH="backend"
 .\.venv\Scripts\python.exe -m alembic -c backend/alembic.ini downgrade -1
 ```
 
+### PostgreSQL Integration Verification
+To verify PostgreSQL migration, JSONB schema, repository persistence, cascades, and API against a live PostgreSQL instance:
+```powershell
+# Run with configured DATABASE_URL:
+$env:DATABASE_URL="postgresql+psycopg://username:password@localhost:5432/financial_analyst"
+.\.venv\Scripts\python.exe backend/scripts/verify_postgres.py
+```
+
 ### Start React + Vite Frontend Dashboard
 ```powershell
 # In another terminal window:
@@ -266,7 +274,7 @@ npm test
 npm run build
 ```
 
-### Run Backend Automated Test Suite (88 Tests)
+### Run Backend Automated Test Suite (90 Unit & Migration Tests)
 ```powershell
 $env:PYTHONPATH="backend"
 .\.venv\Scripts\pytest.exe backend/tests -v
