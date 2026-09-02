@@ -230,27 +230,25 @@ $env:PYTHONPATH="backend"
 # ReDoc:      http://localhost:8000/redoc
 ```
 
-### Run Grounded LLM Research Memo via CLI
+### Start React + Vite Frontend Dashboard
 ```powershell
-$env:PYTHONPATH="backend"
+# In another terminal window:
+cd frontend
+npm run dev
 
-# Run end-to-end research synthesis (or graceful missing-key prompt)
-.\.venv\Scripts\python.exe -m app.research AAPL
-
-# Output complete structured JSON report:
-.\.venv\Scripts\python.exe -m app.research NVDA --json
+# Dashboard will run at: http://localhost:5173
 ```
 
-### Run Full Financial & DCF Analysis (Zero LLM Required)
+### Run Frontend Test Suite (29 Tests)
 ```powershell
-$env:PYTHONPATH="backend"
-.\.venv\Scripts\python.exe -m app.financial.engine AAPL
+cd frontend
+npm test
 
-# Test company with macro overrides:
-.\.venv\Scripts\python.exe -m app.financial.engine MSFT --rf 0.045 --g 0.025
+# Production build:
+npm run build
 ```
 
-### Run Automated Test Suite (78 Tests)
+### Run Backend Automated Test Suite (78 Tests)
 ```powershell
 $env:PYTHONPATH="backend"
 .\.venv\Scripts\pytest.exe backend/tests -v
@@ -266,7 +264,7 @@ $env:PYTHONPATH="backend"
 - [x] **Milestone 3**: Valuation engine (DCF, WACC, Terminal Value, 2D sensitivity analysis, sector gating).
 - [x] **Milestone 4**: Grounded LLM research layer (OpenAI structured outputs, 11 grounding rules, memo).
 - [x] **Milestone 5**: FastAPI backend endpoints (`/api/analyze`, `/api/health`, `/api/research`).
-- [ ] **Milestone 6**: React + TypeScript + Tailwind dashboard with Recharts.
+- [x] **Milestone 6**: React + TypeScript + Tailwind dashboard with Recharts.
 - [ ] **Milestone 7**: PostgreSQL persistence and caching.
 - [ ] **Milestone 8**: Error handling, resilience, and edge case hardening.
 - [ ] **Milestone 9**: Docker containerization and final deployment documentation.

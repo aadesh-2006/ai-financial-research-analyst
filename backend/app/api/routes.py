@@ -73,7 +73,7 @@ async def analyze_company(
     logger.info(f"Received API analysis request for ticker: {payload.ticker}")
     company_data = orchestrator.get_company_data(payload.ticker)
     analysis = engine.analyze(company_data)
-    return AnalyzeResponse.from_analysis(analysis, company_data.company_profile)
+    return AnalyzeResponse.from_analysis(analysis, company_data.company_profile, company_data.news[:5])
 
 
 @router.post(

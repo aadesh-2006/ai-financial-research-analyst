@@ -61,18 +61,24 @@ class AnalyzeResponse(FinancialAnalysis):
     """
     description: Optional[str] = Field(default=None, description="Company business description")
     website: Optional[str] = Field(default=None, description="Official company website")
+    news: List[Dict[str, Any]] = Field(default_factory=list, description="Recent verified market headlines")
 
     @classmethod
     def from_analysis(
         cls,
         analysis: FinancialAnalysis,
         profile: Optional[CompanyProfile] = None,
+        news: Optional[List[Any]] = None,
     ) -> "AnalyzeResponse":
         """Factory method to cleanly build AnalyzeResponse from FinancialAnalysis and CompanyProfile."""
         data = analysis.model_dump()
         if profile:
             data["description"] = profile.description
             data["website"] = profile.website
+        if news:
+            data["news"] = [
+                n.model_dump() if hasattr(n, "model_dump") else n for n in news
+            ]
         return cls(**data)
 
 
