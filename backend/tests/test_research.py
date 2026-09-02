@@ -440,3 +440,152 @@ def test_end_to_end_research_service_with_mocked_llm(sample_company_data, sample
         providers = [s.provider for s in report.sources]
         assert "SEC_EDGAR" in providers
         assert "yfinance" in providers
+
+
+# ==============================================================================
+# 6. M4.1 FOCUSED HARDENING & NUMERIC GROUNDING TESTS
+# ==============================================================================
+
+def test_fabricated_financial_performance_anchors_overridden(
+    sample_company_data, sample_financial_analysis, sample_mock_report
+):
+    """LLM cannot introduce conflicting revenue growth, operating margin, or FCF numbers."""
+    service = ResearchService()
+    # Simulate LLM attempting to fabricate conflicting performance numbers
+    sample_mock_report.financial_snapshot.revenue_growth_yoy_pct = 99.9
+    sample_mock_report.financial_snapshot.operating_margin_pct = 88.8
+    sample_mock_report.financial_snapshot.net_margin_pct = 77.7
+    sample_mock_report.financial_snapshot.free_cash_flow = 999_999.0
+
+    aligned = service.validate_and_align_report(
+        sample_mock_report, sample_company_data, sample_financial_analysis
+    )
+
+    # Must be programmatically anchored to deterministic FinancialAnalysis
+    assert aligned.financial_snapshot.revenue_growth_yoy_pct == 20.0
+    assert aligned.financial_snapshot.operating_margin_pct == 26.7
+    assert aligned.financial_snapshot.net_margin_pct == 21.7
+    assert aligned.financial_snapshot.free_cash_flow == 32_000.0
+
+
+def test_fabricated_valuation_multiples_anchors_overridden(
+    sample_company_data, sample_financial_analysis, sample_mock_report
+):
+    """LLM cannot introduce conflicting P/E, P/S, EV/EBITDA, share price, or P/B."""
+    service = ResearchService()
+    sample_mock_report.valuation_assessment.current_share_price = 10.0
+    sample_mock_report.valuation_assessment.pe_ratio = 5.0
+    sample_mock_report.valuation_assessment.price_to_sales = 0.5
+    sample_mock_report.valuation_assessment.ev_to_ebitda = 2.0
+    sample_mock_report.valuation_assessment.price_to_book = 1.25  # Fabricated P/B
+
+    aligned = service.validate_and_align_report(
+        sample_mock_report, sample_company_data, sample_financial_analysis
+    )
+
+    assert aligned.valuation_assessment.current_share_price == 150.0
+    assert aligned.valuation_assessment.pe_ratio == 25.5
+    assert aligned.valuation_assessment.price_to_sales == 5.5
+    assert aligned.valuation_assessment.ev_to_ebitda == 18.2
+    assert aligned.valuation_assessment.price_to_book is None  # Strictly unavailable
+
+
+def test_deterministic_dcf_parameters_remain_authoritative(
+    sample_company_data, sample_financial_analysis, sample_mock_report
+):
+    """LLM cannot alter WACC, terminal growth, implied price, or upside %."""
+    service = ResearchService()
+    sample_mock_report.dcf_interpretation.model_wacc_pct = 4.0
+    sample_mock_report.dcf_interpretation.model_terminal_growth_pct = 1.0
+    sample_mock_report.dcf_interpretation.model_implied_share_price = 99.0
+    sample_mock_report.dcf_interpretation.model_upside_downside_pct = -35.0
+
+    aligned = service.validate_and_align_report(
+        sample_mock_report, sample_company_data, sample_financial_analysis
+    )
+
+    assert aligned.dcf_interpretation.model_wacc_pct == 9.8
+    assert aligned.dcf_interpretation.model_terminal_growth_pct == 2.5
+    assert aligned.dcf_interpretation.model_implied_share_price == 548.0
+    assert aligned.dcf_interpretation.model_upside_downside_pct == 265.3
+
+
+def test_financial_institution_bank_dcf_metrics_strictly_nullified(
+    sample_company_data, sample_financial_analysis, sample_mock_report
+):
+    """For a financial institution, DCF metrics are strictly nullified and price signals neutralized."""
+    service = ResearchService()
+    sample_financial_analysis.dcf.status = "not_applicable"
+
+    sample_mock_report.dcf_interpretation.model_wacc_pct = 8.5
+    sample_mock_report.dcf_interpretation.model_terminal_growth_pct = 2.0
+    sample_mock_report.dcf_interpretation.model_implied_share_price = 300.0
+    sample_mock_report.dcf_interpretation.model_upside_downside_pct = 50.0
+    sample_mock_report.dcf_interpretation.valuation_signal = "Implied price of $300 indicates 50% upside"
+
+    aligned = service.validate_and_align_report(
+        sample_mock_report, sample_company_data, sample_financial_analysis
+    )
+
+    assert aligned.dcf_interpretation.model_wacc_pct is None
+    assert aligned.dcf_interpretation.model_terminal_growth_pct is None
+    assert aligned.dcf_interpretation.model_implied_share_price is None
+    assert aligned.dcf_interpretation.model_upside_downside_pct is None
+    assert "not applicable to financial institutions" in aligned.dcf_interpretation.valuation_signal.lower()
+
+
+def test_price_to_book_explicitly_unavailable_in_context(
+    sample_company_data, sample_financial_analysis
+):
+    """P/B is explicitly stated as unavailable in context and briefing rather than fabricated."""
+    ctx = build_research_context(sample_company_data, sample_financial_analysis)
+    assert "Unavailable" in ctx["valuation_multiples"]["price_to_book"]
+
+    text = format_context_as_text(ctx)
+    assert "- Price-to-Book (P/B): Unavailable" in text
+
+
+def test_source_provenance_handles_missing_urls_as_none(
+    sample_company_data, sample_financial_analysis
+):
+    """Missing CIK and missing news URLs cleanly remain None without fabricated domains."""
+    sample_company_data.company_profile.cik = None
+    sample_company_data.news[0].url = None
+
+    sources = extract_sources(sample_company_data, sample_financial_analysis)
+    sec_src = next(s for s in sources if s.provider == "SEC_EDGAR")
+    news_src = next(s for s in sources if s.provider == "Tech Daily")
+    market_src = next(s for s in sources if s.provider == "yfinance")
+
+    assert sec_src.url is None
+    assert news_src.url is None
+    assert market_src.url is None
+
+
+def test_fabricated_sources_from_llm_rejected(
+    sample_company_data, sample_financial_analysis, sample_mock_report
+):
+    """Fabricated citations and URLs generated by an LLM are completely discarded."""
+    service = ResearchService()
+    # Simulate LLM adding a fake source
+    sample_mock_report.sources = [
+        ResearchSource(
+            provider="HallucinatedBlog",
+            title="Leaked M&A Rumors",
+            url="https://fake-rumors.com/leak",
+            source_type="news",
+        )
+    ]
+
+    aligned = service.validate_and_align_report(
+        sample_mock_report, sample_company_data, sample_financial_analysis
+    )
+
+    # Hallucinated source must not be in report sources
+    providers = [s.provider for s in aligned.sources]
+    urls = [s.url for s in aligned.sources if s.url]
+    assert "HallucinatedBlog" not in providers
+    assert "https://fake-rumors.com/leak" not in urls
+    # Verified sources must be present
+    assert "SEC_EDGAR" in providers
+    assert "yfinance" in providers
