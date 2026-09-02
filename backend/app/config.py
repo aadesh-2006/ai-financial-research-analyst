@@ -1,4 +1,4 @@
-﻿"""App configuration module."""
+"""App configuration module."""
 from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -15,8 +15,13 @@ class Settings(BaseSettings):
     finnhub_api_key: Optional[str] = None
     news_api_key: Optional[str] = None
     
-    # Future Milestones
+    # LLM & Research Synthesis Configuration
     openai_api_key: Optional[str] = None
+    openai_model: str = "gpt-4o-mini"
+    openai_temperature: float = 0.2
+    openai_timeout: int = 45
+    
+    # Future Milestones
     database_url: Optional[str] = None
     
     model_config = SettingsConfigDict(

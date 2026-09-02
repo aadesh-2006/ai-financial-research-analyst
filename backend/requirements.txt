@@ -1,4 +1,4 @@
-﻿# Core Schema & Settings
+# Core Schema & Settings
 pydantic>=2.10.0
 pydantic-settings>=2.6.0
 python-dotenv>=1.0.0
@@ -11,3 +11,6 @@ pandas>=2.2.0
 # Testing
 pytest>=8.3.0
 pytest-mock>=3.14.0
+
+# LLM Synthesis Layer
+openai>=1.50.0
