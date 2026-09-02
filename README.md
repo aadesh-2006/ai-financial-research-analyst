@@ -47,15 +47,84 @@ A modular, production-quality financial intelligence platform combining multi-so
                                                      ▼
                                      ┌───────────────────────────────┐
                                      │       FinancialAnalysis       │
-                                     │    (Structured Results)       │
+                                     │   (Deterministic Ground Truth)│
+                                     └───────────────┬───────────────┘
+                                                     │
+                                                     ▼
+                                     ┌───────────────────────────────┐
+                                     │    Research Context Builder   │
+                                     │  - Strict 9-Section Briefing  │
+                                     │  - Source Provenance Extractor│
+                                     └───────────────┬───────────────┘
+                                                     │
+                                                     ▼
+                                     ┌───────────────────────────────┐
+                                     │   OpenAI Structured Outputs   │
+                                     │      (gpt-4o-mini / gpt-4o)   │
+                                     │   - 11 Grounding Rules        │
+                                     │   - Zero Financial Math       │
+                                     └───────────────┬───────────────┘
+                                                     │
+                                                     ▼
+                                     ┌───────────────────────────────┐
+                                     │    ResearchReport (Pydantic)  │
+                                     │  - Executive Summary & Thesis │
+                                     │  - Strengths, Risks, Catalysts│
+                                     │  - Grounded DCF Interpretation│
+                                     │  - Programmatic Guardrails    │
                                      └───────────────────────────────┘
 ```
 
 ---
 
-## 2. Milestone 3: DCF Valuation & WACC Methodology
+## 2. Milestone 4: Grounded LLM Research Layer
 
-The DCF valuation engine is implemented as deterministic Python logic. It produces a **model-implied intrinsic value** based on grounded assumptions. It does **not** claim to provide an absolute market forecast or investment advice.
+> **Critical Design Principle:**
+> The deterministic financial engine remains the **single source of truth** for all numerical analysis.
+> The LLM functions exclusively as a **qualitative research synthesis layer** and is strictly prohibited from calculating financial numbers, inventing metrics, or adjusting valuation outputs.
+
+### A. Grounding Contract & Safety Safeguards
+The LLM integration is bound by an explicit 11-rule prompt contract and programmatic post-processing guardrails:
+1. **Zero Invented Numbers**: Never invent financial metrics, prices, ratios, shares, or cash flows.
+2. **Zero Financial Calculations**: The LLM is a qualitative synthesis layer, not a calculator.
+3. **Preserve Deterministic Values**: Never alter or recompute supplied metrics or DCF values.
+4. **Explicit Unavailability**: If a field is missing or N/A, explicitly state it is unavailable. Never guess.
+5. **Zero Fabricated News / Facts**: All qualitative claims must trace to supplied news headlines or filings.
+6. **Information Classification**: Clearly distinguish between observed audited data, market quotes, model assumptions, calculated values, and qualitative commentary.
+7. **Model-Implied Valuation**: DCF output is an intrinsic derivation under explicit assumptions, not an absolute market forecast.
+8. **No Guaranteed Returns**: Never present model-implied upside/downside as a promised or guaranteed return.
+9. **Sensitivity Discussion**: Always evaluate the 2D sensitivity grid and discuss valuation dispersion across discount rate and growth scenarios.
+10. **Financial Institution Gate**: If DCF status is `not_applicable` (e.g. commercial banks like JPM), never manufacture a DCF value; explain the sector gate and evaluate via P/E, P/B, and ROE.
+11. **Institutional Research Tone**: Write with balanced, disciplined sell-side/buy-side research standards; never issue unsupported binary buy/sell commands.
+
+### B. Output Schema (`ResearchReport`)
+- **`executive_summary`**: High-level executive briefing for investment committees.
+- **`investment_thesis`**: Fundamental thesis on competitive positioning and cash generation.
+- **`financial_snapshot`**: Structured summary and key performance bullets.
+- **`valuation_assessment`**: Trading multiples evaluation relative to peers and history.
+- **`strengths`, `risks`, `catalysts`, `concerns`**: Granular fundamental drivers.
+- **`financial_health_assessment`**: Solvent balance sheet and liquidity commentary.
+- **`dcf_interpretation`**: Grounded explanation of WACC, terminal growth, and sensitivity matrix.
+- **`news_and_market_context`**: Verifiable news events and operational context.
+- **`confidence`**: Rated confidence level (`High`, `Medium`, `Cautious`) with rationale.
+- **`limitations`**: Explicit methodological limitations and model caveats.
+- **`sources`**: Verifiable list of SEC filings, market quotes, news articles, and models.
+
+### C. Environment Configuration
+The research layer is configured via environment variables or `.env`:
+```ini
+OPENAI_API_KEY=sk-...           # Required for live LLM synthesis
+OPENAI_MODEL=gpt-4o-mini        # Default model (configurable to gpt-4o)
+OPENAI_TEMPERATURE=0.2          # Low temperature for analytical consistency
+OPENAI_TIMEOUT=45               # Request timeout in seconds
+```
+*If `OPENAI_API_KEY` is not provided, the application gracefully reports the missing key without crashing, preserving full access to deterministic data ingestion, financial ratios, and DCF calculations.*
+
+---
+
+## 3. Milestone 3: DCF Valuation & WACC Methodology
+
+The DCF valuation engine is implemented as deterministic Python logic. It produces a **model-implied intrinsic value** based on grounded assumptions.
 
 ### A. Data vs. Assumptions vs. Calculated Values
 
@@ -82,58 +151,30 @@ The DCF valuation engine is implemented as deterministic Python logic. It produc
 
 ---
 
-### B. Sector-Aware DCF Gating (Commercial Banks & Financials)
-- **Financial Institutions (e.g., JPM)**: Commercial banks do not report conventional Capex or standard industrial Free Cash Flow. Bank balance sheets intermediate capital via interest spreads, deposits, and statutory capital ratios.
-- **Defensive Handling**: The engine automatically detects financial sector SIC codes and company profiles, marking the DCF status as `not_applicable` with warning code `SectorNotSupportedForDCF`.
-- **Alternative Guidance**: The engine recommends evaluating financial institutions through Price-to-Earnings (P/E), Price-to-Book (P/B), and Return on Equity (ROE) benchmarking rather than forcing an invalid DCF.
-
----
-
-### C. 2D Sensitivity Matrix
-To understand how intrinsic valuation fluctuates across macroeconomic scenarios, the engine computes a 2D matrix:
-- **WACC Scenarios**: 6.0%, 7.0%, 8.0%, 9.0%, 10.0%, 11.0%, 12.0%
-- **Terminal Growth Scenarios**: 1.0%, 1.5%, 2.0%, 2.5%, 3.0%, 3.5%
-- **Mathematical Guardrail**: If \(g \ge WACC\), Gordon Growth is mathematically undefined. The cell returns `None` without crashing.
-
----
-
-## 3. Financial Methodology & Formula Reference
-
-| Category | Metric | Formula / Methodology | Required Inputs |
-| :--- | :--- | :--- | :--- |
-| **Valuation** | **Cost of Equity** | \(R_f + \beta \times ERP\) | \(R_f\), \(\beta\), \(ERP\) |
-| **Valuation** | **WACC** | \(W_e \times K_e + W_d \times K_{d, after-tax}\) | \(K_e\), \(K_d\), Market Equity, Debt |
-| **Valuation** | **Terminal Value** | \((FCF_5 \times (1 + g)) / (WACC - g)\) | Year 5 FCF, WACC, \(g < WACC\) |
-| **Valuation** | **Enterprise Value** | \(PV(Explicit\,FCF) + PV(Terminal\,Value)\) | 5-Yr Projections, TV, WACC |
-| **Valuation** | **Equity Value** | \(Enterprise\,Value - (Total\,Debt - Cash)\) | EV, Total Debt, Cash |
-| **Valuation** | **Implied Price** | \(Equity\,Value / Shares\,Outstanding\) | Equity Value, Shares Outstanding |
-| **Growth** | **Revenue YoY** | \((Revenue_t - Revenue_{t-1}) / Revenue_{t-1}\) | Consecutive annual revenues |
-| **Growth** | **3-Yr Rev CAGR** | \((Revenue_t / Revenue_{t-3})^{1/3} - 1\) | Revenues across 3-year span |
-| **Profitability**| **Operating Margin**| \(Operating\,Income / Revenue\) | Operating Income, Revenue |
-| **Profitability**| **Net Margin** | \(Net\,Income / Revenue\) | Net Income, Revenue |
-| **Profitability**| **ROE** | \(Net\,Income / ((Equity_t + Equity_{t-1}) / 2)\) | Net Income, 2-period Equity |
-| **Leverage** | **Debt-to-Equity** | \(Total\,Debt / Stockholders'\,Equity\) | Total Debt, Equity |
-| **Cash Flow** | **Free Cash Flow** | \(Operating\,Cash\,Flow - Capital\,Expenditure\) | OCF, Capex |
-| **Cash Flow** | **FCF Conversion** | \(Free\,Cash\,Flow / Net\,Income\) | FCF, Net Income |
-
----
-
 ## 4. Local Execution & CLI Commands
 
-### Run Full Financial & DCF Analysis on any Ticker
+### Run Grounded LLM Research Memo on any Ticker
 ```powershell
 # Windows PowerShell
 $env:PYTHONPATH="backend"
-.\.venv\Scripts\python.exe -m app.financial.engine AAPL
 
-# Test company with overrides:
-.\.venv\Scripts\python.exe -m app.financial.engine MSFT --rf 0.045 --g 0.025
+# Run end-to-end research synthesis (or graceful missing-key prompt)
+.\.venv\Scripts\python.exe -m app.research AAPL
 
-# Output complete JSON payload
-.\.venv\Scripts\python.exe -m app.financial.engine NVDA --json
+# Output complete structured JSON report:
+.\.venv\Scripts\python.exe -m app.research NVDA --json
 ```
 
-### Run Automated Test Suite (41 Tests)
+### Run Full Financial & DCF Analysis (Zero LLM Required)
+```powershell
+$env:PYTHONPATH="backend"
+.\.venv\Scripts\python.exe -m app.financial.engine AAPL
+
+# Test company with macro overrides:
+.\.venv\Scripts\python.exe -m app.financial.engine MSFT --rf 0.045 --g 0.025
+```
+
+### Run Automated Test Suite (56 Tests)
 ```powershell
 $env:PYTHONPATH="backend"
 .\.venv\Scripts\pytest.exe backend/tests -v
@@ -147,7 +188,7 @@ $env:PYTHONPATH="backend"
 - [x] **Milestone 1**: Data ingestion pipeline (SEC EDGAR, yfinance, News) & normalization.
 - [x] **Milestone 2**: Deterministic financial analysis engine (growth, margins, leverage, cash flow, health).
 - [x] **Milestone 3**: Valuation engine (DCF, WACC, Terminal Value, 2D sensitivity analysis, sector gating).
-- [ ] **Milestone 4**: LLM research layer (grounded investment memo & structured synthesis).
+- [x] **Milestone 4**: Grounded LLM research layer (OpenAI structured outputs, 11 grounding rules, memo).
 - [ ] **Milestone 5**: FastAPI backend endpoints (`/api/analyze`, `/api/health`).
 - [ ] **Milestone 6**: React + TypeScript + Tailwind dashboard with Recharts.
 - [ ] **Milestone 7**: PostgreSQL persistence and caching.
