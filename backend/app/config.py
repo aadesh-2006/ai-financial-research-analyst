@@ -21,6 +21,14 @@ class Settings(BaseSettings):
     openai_temperature: float = 0.2
     openai_timeout: int = 45
     
+    # CORS Configuration (configurable for React/Vite dev servers)
+    cors_allowed_origins: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ]
+    
     # Future Milestones
     database_url: Optional[str] = None
     
