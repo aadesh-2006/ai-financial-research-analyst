@@ -20,6 +20,18 @@ class FinancialSnapshot(BaseModel):
     """Executive financial performance summary."""
     summary: str = Field(description="High-level overview of historical growth, revenue, and margins")
     key_points: List[str] = Field(description="Key quantitative milestones and bullet points")
+    revenue_growth_yoy_pct: Optional[float] = Field(
+        default=None, description="Deterministic revenue YoY growth % anchored to financial engine"
+    )
+    operating_margin_pct: Optional[float] = Field(
+        default=None, description="Deterministic operating margin % anchored to financial engine"
+    )
+    net_margin_pct: Optional[float] = Field(
+        default=None, description="Deterministic net margin % anchored to financial engine"
+    )
+    free_cash_flow: Optional[float] = Field(
+        default=None, description="Deterministic latest annual Free Cash Flow in native currency"
+    )
 
 
 class ValuationAssessment(BaseModel):
@@ -27,6 +39,14 @@ class ValuationAssessment(BaseModel):
     summary: str = Field(description="Qualitative assessment of P/E, EV/EBITDA, P/S relative to performance")
     multiples_summary: str = Field(description="Concise description of key trading multiples")
     key_points: List[str] = Field(description="Core valuation takeaways and observations")
+    current_share_price: Optional[float] = Field(default=None, description="Deterministic current market price")
+    pe_ratio: Optional[float] = Field(default=None, description="Deterministic trailing P/E multiple")
+    forward_pe: Optional[float] = Field(default=None, description="Deterministic forward P/E multiple")
+    price_to_sales: Optional[float] = Field(default=None, description="Deterministic Price-to-Sales multiple")
+    ev_to_ebitda: Optional[float] = Field(default=None, description="Deterministic EV/EBITDA multiple")
+    price_to_book: Optional[float] = Field(
+        default=None, description="Price-to-Book multiple (None if not available in valuation engine)"
+    )
 
 
 class FinancialHealthAssessment(BaseModel):
@@ -44,6 +64,15 @@ class DCFInterpretation(BaseModel):
     )
     sensitivity_observation: str = Field(
         description="Discussion of valuation dispersion across WACC and Terminal Growth rate scenarios"
+    )
+    model_wacc_pct: Optional[float] = Field(
+        default=None, description="Deterministic WACC % from engine (None for financial institutions)"
+    )
+    model_terminal_growth_pct: Optional[float] = Field(
+        default=None, description="Deterministic terminal growth % from engine (None for financial institutions)"
+    )
+    model_implied_share_price: Optional[float] = Field(
+        default=None, description="Deterministic implied share price from engine (None for financial institutions)"
     )
     model_upside_downside_pct: Optional[float] = Field(
         default=None,

@@ -39,48 +39,109 @@ class ResearchService:
         financial_analysis: FinancialAnalysis,
     ) -> ResearchReport:
         """
-        Applies programmatic guardrails to ensure the LLM has not modified deterministic numbers
-        or fabricated metadata.
+        Applies programmatic guardrails to ensure the LLM cannot introduce conflicting
+        financial numbers, alter DCF outputs, or inject fabricated source citations.
+        The deterministic FinancialAnalysis engine is the authoritative source of truth.
         """
+        adjustments_made = False
+
         # 1. Ticker consistency
         if report.ticker.strip().upper() != company_data.ticker.strip().upper():
             logger.warning(
                 f"LLM returned ticker '{report.ticker}' instead of '{company_data.ticker}'; normalizing."
             )
             report.ticker = company_data.ticker.strip().upper()
+            adjustments_made = True
 
         # 2. Company name normalization
         if not report.company_name or len(report.company_name.strip()) < 2:
             report.company_name = company_data.company_profile.name
+            adjustments_made = True
 
-        # 3. DCF consistency guardrails
+        # 3. Deterministic Financial Performance Anchors (Financial Snapshot)
+        g = financial_analysis.growth
+        p = financial_analysis.profitability
+        cf = financial_analysis.cash_flow
+        snap = report.financial_snapshot
+
+        snap.revenue_growth_yoy_pct = (
+            round(g.revenue_growth_yoy * 100.0, 1) if g.revenue_growth_yoy is not None else None
+        )
+        snap.operating_margin_pct = (
+            round(p.operating_margin * 100.0, 1) if p.operating_margin is not None else None
+        )
+        snap.net_margin_pct = (
+            round(p.net_margin * 100.0, 1) if p.net_margin is not None else None
+        )
+        snap.free_cash_flow = cf.free_cash_flow
+
+        # 4. Deterministic Valuation Multiples Anchors (Valuation Assessment)
+        v = financial_analysis.valuation
+        m = company_data.market_data
+        val = report.valuation_assessment
+
+        val.current_share_price = m.current_price
+        val.pe_ratio = v.pe_ratio
+        val.forward_pe = v.forward_pe
+        val.price_to_sales = v.price_to_sales
+        val.ev_to_ebitda = v.ev_to_ebitda
+        val.price_to_book = None  # Strictly unavailable in deterministic engine
+
+        # 5. Deterministic DCF Valuation & Sensitivity Anchors
         dcf = financial_analysis.dcf
-        if dcf and dcf.status == "not_applicable":
-            # For financial institutions, strictly enforce no fabricated DCF target
-            if report.dcf_interpretation.model_upside_downside_pct is not None:
-                logger.warning(
-                    f"Financial institution {report.ticker} has not_applicable DCF, but LLM populated upside %. Clearing."
-                )
-                report.dcf_interpretation.model_upside_downside_pct = None
-        elif dcf and dcf.status == "calculated" and dcf.upside_downside_pct is not None:
-            # Anchor upside/downside strictly to the deterministic engine calculation
-            if report.dcf_interpretation.model_upside_downside_pct is None or abs(
-                report.dcf_interpretation.model_upside_downside_pct - dcf.upside_downside_pct
-            ) > 0.5:
-                logger.info(
-                    f"Aligning LLM upside/downside ({report.dcf_interpretation.model_upside_downside_pct}%) "
-                    f"to deterministic engine value ({dcf.upside_downside_pct:.1f}%)."
-                )
-                report.dcf_interpretation.model_upside_downside_pct = round(dcf.upside_downside_pct, 1)
+        dcf_interp = report.dcf_interpretation
 
-        # 4. Provenance preservation: ensure verified application sources are present
-        verified_sources = extract_sources(company_data, financial_analysis)
-        existing_urls = {s.url for s in report.sources if s.url}
-        for v_src in verified_sources:
-            if v_src.url not in existing_urls:
-                report.sources.append(v_src)
-                if v_src.url:
-                    existing_urls.add(v_src.url)
+        if dcf and dcf.status == "not_applicable":
+            # For financial institutions, strictly enforce no fabricated DCF metrics
+            if any([
+                dcf_interp.model_wacc_pct is not None,
+                dcf_interp.model_terminal_growth_pct is not None,
+                dcf_interp.model_implied_share_price is not None,
+                dcf_interp.model_upside_downside_pct is not None,
+            ]):
+                logger.warning(
+                    f"Financial institution {report.ticker} has not_applicable DCF, but LLM populated DCF metrics. Clearing."
+                )
+                adjustments_made = True
+
+            dcf_interp.model_wacc_pct = None
+            dcf_interp.model_terminal_growth_pct = None
+            dcf_interp.model_implied_share_price = None
+            dcf_interp.model_upside_downside_pct = None
+
+            # Neutralize any hallucinated price targets in qualitative signal
+            if any(term in dcf_interp.valuation_signal.lower() for term in ["target of $", "upside of", "implied price of"]):
+                dcf_interp.valuation_signal = (
+                    "Traditional industrial Free Cash Flow DCF is not applicable to financial institutions. "
+                    "Valuation is anchored exclusively to P/E multiples and Return on Equity (ROE)."
+                )
+                adjustments_made = True
+
+        elif dcf and dcf.status == "calculated":
+            # Programmatically anchor all quantitative DCF outputs to deterministic calculations
+            dcf_interp.model_wacc_pct = round(dcf.wacc * 100.0, 2) if dcf.wacc is not None else None
+            dcf_interp.model_terminal_growth_pct = (
+                round(dcf.terminal_growth_rate * 100.0, 2) if dcf.terminal_growth_rate is not None else None
+            )
+            dcf_interp.model_implied_share_price = (
+                round(dcf.implied_share_price, 2) if dcf.implied_share_price is not None else None
+            )
+            dcf_interp.model_upside_downside_pct = (
+                round(dcf.upside_downside_pct, 1) if dcf.upside_downside_pct is not None else None
+            )
+        else:
+            dcf_interp.model_wacc_pct = None
+            dcf_interp.model_terminal_growth_pct = None
+            dcf_interp.model_implied_share_price = None
+            dcf_interp.model_upside_downside_pct = None
+
+        # 6. Strict Provenance Grounding: authoritative sources originate only from verified data layer
+        report.sources = extract_sources(company_data, financial_analysis)
+
+        # 7. Audit disclosure
+        audit_note = "All quantitative metrics programmatically anchored to deterministic FinancialAnalysis engine."
+        if audit_note not in report.limitations:
+            report.limitations.append(audit_note)
 
         return report
 

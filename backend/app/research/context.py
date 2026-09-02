@@ -40,7 +40,7 @@ def extract_sources(company_data: CompanyData, financial_analysis: FinancialAnal
     # 1. SEC EDGAR source
     filing_years = [str(f.fiscal_year) for f in company_data.historical_financials]
     cik = company_data.company_profile.cik
-    sec_url = f"https://www.sec.gov/edgar/browse/?CIK={cik}" if cik else "https://www.sec.gov/edgar"
+    sec_url = f"https://www.sec.gov/edgar/browse/?CIK={cik}" if (cik and cik.strip()) else None
     years_str = ", ".join(filing_years) if filing_years else "Recent"
     sources.append(
         ResearchSource(
@@ -51,23 +51,23 @@ def extract_sources(company_data: CompanyData, financial_analysis: FinancialAnal
         )
     )
 
-    # 2. Market Data source
+    # 2. Market Data source (preserves URL as None unless explicitly provided)
     sources.append(
         ResearchSource(
             provider="yfinance",
             title=f"Market Quote, Capital Structure & Trading Multiples ({company_data.ticker})",
-            url=f"https://finance.yahoo.com/quote/{company_data.ticker}",
+            url=None,
             source_type="market_data",
         )
     )
 
-    # 3. News sources
+    # 3. News sources (preserves actual article URLs or None)
     for art in company_data.news:
         sources.append(
             ResearchSource(
                 provider=art.source or "Financial News",
                 title=art.headline,
-                url=art.url,
+                url=art.url if (art.url and art.url.strip()) else None,
                 published_at=art.published_at,
                 source_type="news",
             )
@@ -168,7 +168,8 @@ def build_research_context(company_data: CompanyData, financial_analysis: Financ
         dcf_context["note"] = (
             "Traditional industrial Free Cash Flow DCF is NOT applicable to commercial banks and financial institutions. "
             "Financial institutions intermediate capital through interest margins and regulatory ratios rather than "
-            "industrial capex. Valuation must rely on P/E, P/B, and ROE comparative multiples."
+            "industrial capex. Valuation must rely on available multiples (P/E) and return ratios (ROE). "
+            "(Note: Price-to-Book is currently unavailable in the valuation engine; do not fabricate a P/B value)."
         )
         dcf_context["warnings"] = dcf.warnings
     elif dcf:
@@ -229,6 +230,7 @@ def build_research_context(company_data: CompanyData, financial_analysis: Financ
             "ev_to_ebitda": _fmt_mult(v.ev_to_ebitda),
             "price_to_sales": _fmt_mult(v.price_to_sales),
             "price_to_fcf": _fmt_mult(v.price_to_fcf),
+            "price_to_book": "Unavailable (not reported in deterministic valuation engine)",
             "shares_outstanding": f"{market.shares_outstanding:,.0f}" if market.shares_outstanding else "N/A",
             "beta": f"{market.beta:.2f}" if market.beta is not None else "N/A",
         },
@@ -301,6 +303,7 @@ def format_context_as_text(context: Dict[str, Any]) -> str:
         f"- Enterprise Value / EBITDA: {v['ev_to_ebitda']}",
         f"- Price-to-Sales (P/S): {v['price_to_sales']}",
         f"- Price-to-FCF (P/FCF): {v['price_to_fcf']}",
+        f"- Price-to-Book (P/B): {v['price_to_book']}",
         f"- Shares Outstanding: {v['shares_outstanding']}",
         f"- Beta: {v['beta']}",
         "",
