@@ -92,3 +92,49 @@ class ErrorDetail(BaseModel):
 class ErrorResponse(BaseModel):
     """Standardized API error response format."""
     error: ErrorDetail
+
+
+# ---------------------------------------------------------------------------
+# History and Persistence Response Schemas
+# ---------------------------------------------------------------------------
+
+class CompanySummary(BaseModel):
+    """Summary of an analyzed company and its latest snapshot status."""
+    id: int
+    ticker: str
+    company_name: str
+    sector: Optional[str] = None
+    industry: Optional[str] = None
+    currency: str = "USD"
+    website: Optional[str] = None
+    last_analyzed_at: Optional[str] = None
+    latest_share_price: Optional[float] = None
+    latest_implied_price: Optional[float] = None
+    latest_health: Optional[str] = None
+    dcf_status: Optional[str] = None
+
+
+class AnalysisSnapshotSummary(BaseModel):
+    """Historical snapshot record of a deterministic analysis."""
+    id: int
+    ticker: str
+    analyzed_at: str
+    current_share_price: Optional[float] = None
+    implied_share_price: Optional[float] = None
+    upside_downside_pct: Optional[float] = None
+    wacc: Optional[float] = None
+    dcf_status: str
+    health_rating: str
+    payload: Dict[str, Any]
+
+
+class ResearchReportSummary(BaseModel):
+    """Historical research report memo summary."""
+    id: int
+    ticker: str
+    generated_at: str
+    confidence_level: Optional[str] = None
+    valuation_signal: Optional[str] = None
+    executive_summary: Optional[str] = None
+    sources_count: int = 0
+    payload: Dict[str, Any]

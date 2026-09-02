@@ -80,7 +80,16 @@ A modular, production-quality financial intelligence platform combining multi-so
                                      │  - GET  /api/health           │
                                      │  - POST /api/analyze          │
                                      │  - POST /api/research         │
+                                     │  - History Endpoints          │
                                      │  - Swagger Docs (/docs)       │
+                                     └───────────────┬───────────────┘
+                                                     │
+                                                     ▼
+                                     ┌───────────────────────────────┐
+                                     │   PostgreSQL Database Layer   │
+                                     │  - SQLAlchemy 2.x + Psycopg3  │
+                                     │  - Normalized Repositories    │
+                                     │  - Alembic Version Migrations │
                                      └───────────────────────────────┘
 ```
 
@@ -228,6 +237,15 @@ $env:PYTHONPATH="backend"
 # Access interactive documentation:
 # Swagger UI: http://localhost:8000/docs
 # ReDoc:      http://localhost:8000/redoc
+### Database Migrations (Alembic)
+```powershell
+$env:PYTHONPATH="backend"
+
+# Apply all database migrations from empty DB:
+.\.venv\Scripts\python.exe -m alembic -c backend/alembic.ini upgrade head
+
+# Roll back migration if needed:
+.\.venv\Scripts\python.exe -m alembic -c backend/alembic.ini downgrade -1
 ```
 
 ### Start React + Vite Frontend Dashboard
@@ -248,7 +266,7 @@ npm test
 npm run build
 ```
 
-### Run Backend Automated Test Suite (78 Tests)
+### Run Backend Automated Test Suite (88 Tests)
 ```powershell
 $env:PYTHONPATH="backend"
 .\.venv\Scripts\pytest.exe backend/tests -v
@@ -256,7 +274,24 @@ $env:PYTHONPATH="backend"
 
 ---
 
-## 6. Project Roadmap
+## 6. Milestone 7: PostgreSQL Persistence & History Endpoints
+
+The persistence layer is implemented using SQLAlchemy 2.x, Psycopg 3, and Alembic. It records company profiles, deterministic analysis snapshots, and grounded AI research memos with citation provenance.
+
+### Normalized Relational Schema
+- **`companies`**: Normalized company records (`id`, `ticker`, `company_name`, `sector`, `industry`, `website`).
+- **`analysis_snapshots`**: Historical quantitative snapshots with scalar metrics for querying (`implied_share_price`, `wacc`, `dcf_status`, `health_rating`) and full JSON payload.
+- **`research_reports`**: Historical qualitative reports with confidence level and full JSON payload.
+- **`research_sources`**: Normalized source citations with foreign keys to reports and cascade deletion.
+
+### History API Endpoints
+- `GET /api/companies`: Returns recently analyzed companies with latest quote, health rating, and DCF status.
+- `GET /api/companies/{ticker}/analyses`: Returns chronological analysis snapshots for the given ticker.
+- `GET /api/companies/{ticker}/research`: Returns chronological AI research memos for the given ticker.
+
+---
+
+## 7. Project Roadmap
 
 - [x] **Milestone 0**: Environment inspection, architecture blueprint, and schema design.
 - [x] **Milestone 1**: Data ingestion pipeline (SEC EDGAR, yfinance, News) & normalization.
@@ -265,6 +300,6 @@ $env:PYTHONPATH="backend"
 - [x] **Milestone 4**: Grounded LLM research layer (OpenAI structured outputs, 11 grounding rules, memo).
 - [x] **Milestone 5**: FastAPI backend endpoints (`/api/analyze`, `/api/health`, `/api/research`).
 - [x] **Milestone 6**: React + TypeScript + Tailwind dashboard with Recharts.
-- [ ] **Milestone 7**: PostgreSQL persistence and caching.
+- [x] **Milestone 7**: PostgreSQL persistence and history endpoints.
 - [ ] **Milestone 8**: Error handling, resilience, and edge case hardening.
 - [ ] **Milestone 9**: Docker containerization and final deployment documentation.

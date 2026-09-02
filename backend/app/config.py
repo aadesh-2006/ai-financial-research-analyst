@@ -29,8 +29,9 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
     ]
     
-    # Future Milestones
-    database_url: Optional[str] = None
+    # Database Configuration (PostgreSQL / SQLite fallback for tests)
+    database_url: str = "sqlite:///./data_cache/financial_analyst.db"
+    database_echo: bool = False
     
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 import requests
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.research.llm import LLMAPIError, LLMKeyMissingError, LLMResponseParsingError
 from app.utils.logging import logger
@@ -119,6 +120,16 @@ def register_exception_handlers(app: FastAPI) -> None:
             status_code=status.HTTP_502_BAD_GATEWAY,
             code="UPSTREAM_DATA_ERROR",
             message="Failed to retrieve upstream market or SEC financial data.",
+        )
+
+    @app.exception_handler(SQLAlchemyError)
+    async def database_error_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
+        # Strictly sanitize database exceptions: never disclose connection strings, credentials or internals
+        logger.error(f"Database error on {request.url.path}: {exc}")
+        return build_error_response(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            code="DATABASE_ERROR",
+            message="A database operation failed while persisting or retrieving data.",
         )
 
     @app.exception_handler(Exception)
