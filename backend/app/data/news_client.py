@@ -1,8 +1,8 @@
-﻿"""News client for retrieving recent corporate headlines and summaries."""
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import requests
+from requests.adapters import HTTPAdapter
 import yfinance as yf
 
 from app.config import settings
@@ -10,11 +10,31 @@ from app.schemas.financial import DataWarning, NewsArticle
 from app.utils.logging import logger
 
 
+class TimeoutHTTPAdapter(HTTPAdapter):
+    """Custom HTTP adapter that enforces an explicit bounded timeout on all outgoing requests."""
+    def __init__(self, timeout: int = 15, *args, **kwargs):
+        self.default_timeout = timeout
+        super().__init__(*args, **kwargs)
+
+    def send(self, request, **kwargs):
+        if kwargs.get("timeout") is None:
+            kwargs["timeout"] = self.default_timeout
+        return super().send(request, **kwargs)
+
+
 class NewsClient:
     """Client for fetching and normalizing corporate news from yfinance and Finnhub."""
 
-    def __init__(self):
+    def __init__(self, timeout: Optional[int] = None):
         self.finnhub_api_key = settings.finnhub_api_key
+        self.timeout = timeout or settings.sec_request_timeout
+        self.session = requests.Session()
+        self.session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        })
+        adapter = TimeoutHTTPAdapter(timeout=self.timeout)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
 
     def get_company_news(
         self, ticker: str, limit: int = 5
@@ -45,8 +65,8 @@ class NewsClient:
 
         # 2. Primary / Default: yfinance news feed
         try:
-            logger.info(f"Querying yfinance news for {clean_ticker}")
-            t = yf.Ticker(clean_ticker)
+            logger.info(f"Querying yfinance news for {clean_ticker} (timeout={self.timeout}s)")
+            t = yf.Ticker(clean_ticker, session=self.session)
             raw_news = t.news or []
             
             articles: List[NewsArticle] = []
@@ -133,7 +153,7 @@ class NewsClient:
             "to": today,
             "token": self.finnhub_api_key,
         }
-        resp = requests.get(url, params=params, timeout=10)
+        resp = self.session.get(url, params=params, timeout=self.timeout)
         if resp.status_code != 200:
             return []
         

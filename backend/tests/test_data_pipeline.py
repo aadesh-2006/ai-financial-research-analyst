@@ -1,4 +1,4 @@
-﻿"""Comprehensive test suite for the data ingestion and normalization pipeline."""
+"""Comprehensive test suite for the data ingestion and normalization pipeline."""
 import math
 from unittest.mock import MagicMock, patch
 import pytest
@@ -484,9 +484,14 @@ def test_live_data_pipeline_aapl():
     assert data.ticker == "AAPL"
     assert "Apple" in data.company_profile.name
     assert data.company_profile.cik == "0000320193"
+    assert len(data.historical_financials) >= 3
+
+    # If yfinance rate limit occurred from upstream provider, skip market quote assertion
+    if any("Rate limited" in str(w.message) or "Too Many Requests" in str(w.message) for w in data.data_warnings):
+        pytest.skip("yfinance rate-limited live market request in test environment")
+
     assert data.market_data.current_price is not None
     assert data.market_data.current_price > 0
-    assert len(data.historical_financials) >= 3
 
     # Check latest year numbers exist and are reasonable
     latest = data.historical_financials[-1]

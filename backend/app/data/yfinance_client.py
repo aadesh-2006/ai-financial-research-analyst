@@ -1,15 +1,38 @@
-"""yfinance market data client and normalizer."""
 import math
 from typing import Any, Dict, List, Optional, Tuple
-
+import requests
+from requests.adapters import HTTPAdapter
 import yfinance as yf
 
+from app.config import settings
 from app.schemas.financial import CompanyProfile, DataWarning, MarketData
 from app.utils.logging import logger
 
 
+class TimeoutHTTPAdapter(HTTPAdapter):
+    """Custom HTTP adapter that enforces an explicit bounded timeout on all outgoing requests."""
+    def __init__(self, timeout: int = 15, *args, **kwargs):
+        self.default_timeout = timeout
+        super().__init__(*args, **kwargs)
+
+    def send(self, request, **kwargs):
+        if kwargs.get("timeout") is None:
+            kwargs["timeout"] = self.default_timeout
+        return super().send(request, **kwargs)
+
+
 class YFinanceClient:
     """Client for retrieving and normalizing market prices and multiples via yfinance."""
+
+    def __init__(self, timeout: Optional[int] = None):
+        self.timeout = timeout or settings.sec_request_timeout
+        self.session = requests.Session()
+        self.session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        })
+        adapter = TimeoutHTTPAdapter(timeout=self.timeout)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
 
     @staticmethod
     def _clean_float(val: Any) -> Optional[float]:
@@ -44,8 +67,8 @@ class YFinanceClient:
         warnings: List[DataWarning] = []
 
         try:
-            logger.info(f"Querying yfinance for {clean_ticker}")
-            t = yf.Ticker(clean_ticker)
+            logger.info(f"Querying yfinance for {clean_ticker} (timeout={self.timeout}s)")
+            t = yf.Ticker(clean_ticker, session=self.session)
             info = t.info or {}
 
             # Fast validity check
