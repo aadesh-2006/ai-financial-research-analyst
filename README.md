@@ -274,7 +274,7 @@ npm test
 npm run build
 ```
 
-### Run Backend Automated Test Suite (90 Unit & Migration Tests)
+### Run Backend Automated Test Suite (105 Tests)
 ```powershell
 $env:PYTHONPATH="backend"
 .\.venv\Scripts\pytest.exe backend/tests -v
@@ -299,7 +299,17 @@ The persistence layer is implemented using SQLAlchemy 2.x, Psycopg 3, and Alembi
 
 ---
 
-## 7. Project Roadmap
+## 7. Milestone 8: Reliability, Resilience & Production Hardening
+
+- **Upstream SEC EDGAR Retries**: Bounded exponential backoff (max 3 attempts) for transient errors (429, 500, 502, 503, 504, Timeouts, ConnectionErrors) with immediate return on non-retryable 4xx.
+- **OpenAI Transient Error Retries**: Bounded retry loop for `RateLimitError`, `APITimeoutError`, `APIConnectionError`, and `InternalServerError` while failing immediately on non-transient `AuthenticationError`.
+- **Database Transaction Safety**: All repository operations and database dependencies wrap transactions with explicit `rollback()` handlers to prevent broken/dirty sessions.
+- **API Input Bounds & Validation**: Query limit bounds (`1-100` for companies, `1-200` for snapshots/research) and strict alphanumeric ticker format validation.
+- **Secret & Credential Masking**: Automated `SensitiveDataFilter` scrubs API keys (`sk-...`), connection passwords, and Bearer tokens from server logs and error messages.
+
+---
+
+## 8. Project Roadmap
 
 - [x] **Milestone 0**: Environment inspection, architecture blueprint, and schema design.
 - [x] **Milestone 1**: Data ingestion pipeline (SEC EDGAR, yfinance, News) & normalization.
@@ -309,5 +319,5 @@ The persistence layer is implemented using SQLAlchemy 2.x, Psycopg 3, and Alembi
 - [x] **Milestone 5**: FastAPI backend endpoints (`/api/analyze`, `/api/health`, `/api/research`).
 - [x] **Milestone 6**: React + TypeScript + Tailwind dashboard with Recharts.
 - [x] **Milestone 7**: PostgreSQL persistence and history endpoints.
-- [ ] **Milestone 8**: Error handling, resilience, and edge case hardening.
+- [x] **Milestone 8**: Reliability, error handling, and production hardening.
 - [ ] **Milestone 9**: Docker containerization and final deployment documentation.

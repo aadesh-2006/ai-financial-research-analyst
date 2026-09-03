@@ -37,10 +37,14 @@ class AnalysisRepository:
             health_rating=health_rating,
             payload=payload,
         )
-        self.db.add(snapshot)
-        self.db.commit()
-        self.db.refresh(snapshot)
-        return snapshot
+        try:
+            self.db.add(snapshot)
+            self.db.commit()
+            self.db.refresh(snapshot)
+            return snapshot
+        except Exception:
+            self.db.rollback()
+            raise
 
     def list_by_ticker(self, ticker: str, limit: int = 50) -> List[AnalysisSnapshot]:
         """Returns analysis history snapshots for a given company ticker, ordered by most recent."""

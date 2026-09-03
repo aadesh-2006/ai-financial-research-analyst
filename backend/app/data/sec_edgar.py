@@ -111,6 +111,68 @@ class SECEdgarClient:
             time.sleep(min_interval - elapsed)
         self._last_request_time = time.time()
 
+    def _request_with_retry(
+        self,
+        url: str,
+        max_retries: int = 3,
+        initial_backoff: float = 0.5,
+        max_backoff: float = 2.0,
+    ) -> Optional[requests.Response]:
+        """
+        Executes an HTTP GET request with throttling, error handling, and bounded exponential backoff.
+        Retries on transient errors: HTTP 429, 500, 502, 503, 504, Timeout, ConnectionError.
+        Does NOT retry non-retryable 4xx (e.g. 400, 401, 403, 404).
+        """
+        backoff = initial_backoff
+        for attempt in range(1, max_retries + 1):
+            self._throttle()
+            try:
+                resp = self.session.get(url, timeout=settings.sec_request_timeout)
+                if resp.status_code == 200:
+                    return resp
+                elif resp.status_code == 404:
+                    logger.warning(f"SEC resource not found at {url} (HTTP 404)")
+                    return None
+                elif resp.status_code in (429, 500, 502, 503, 504):
+                    if attempt < max_retries:
+                        retry_after = resp.headers.get("Retry-After")
+                        sleep_time = min(float(retry_after), max_backoff) if retry_after and retry_after.isdigit() else backoff
+                        logger.warning(
+                            f"SEC request to {url} returned HTTP {resp.status_code} on attempt {attempt}/{max_retries}. "
+                            f"Retrying in {sleep_time:.2f}s..."
+                        )
+                        time.sleep(sleep_time)
+                        backoff = min(backoff * 2.0, max_backoff)
+                        continue
+                    else:
+                        logger.error(f"SEC request to {url} failed with HTTP {resp.status_code} after {max_retries} attempts.")
+                        return None
+                else:
+                    logger.error(f"SEC request to {url} returned non-retryable HTTP {resp.status_code}.")
+                    return None
+            except requests.Timeout:
+                if attempt < max_retries:
+                    logger.warning(f"SEC request timeout for {url} on attempt {attempt}/{max_retries}. Retrying in {backoff:.2f}s...")
+                    time.sleep(backoff)
+                    backoff = min(backoff * 2.0, max_backoff)
+                    continue
+                else:
+                    logger.error(f"SEC request to {url} timed out after {max_retries} attempts.")
+                    return None
+            except requests.RequestException as e:
+                if attempt < max_retries:
+                    logger.warning(f"SEC network error ({type(e).__name__}) on attempt {attempt}/{max_retries}. Retrying in {backoff:.2f}s...")
+                    time.sleep(backoff)
+                    backoff = min(backoff * 2.0, max_backoff)
+                    continue
+                else:
+                    logger.error(f"SEC network error for {url} after {max_retries} attempts: {e}")
+                    return None
+            except Exception as e:
+                logger.error(f"Unexpected error requesting SEC data from {url}: {e}")
+                return None
+        return None
+
     def resolve_cik(self, ticker: str) -> Optional[str]:
         """Resolves a ticker symbol to a 10-digit CIK string."""
         clean_ticker = ticker.strip().upper().replace(".", "-")
@@ -132,21 +194,20 @@ class SECEdgarClient:
         # Fetch live mapping from SEC
         try:
             logger.info(f"Fetching CIK ticker directory from SEC EDGAR for {clean_ticker}")
-            self._throttle()
-            headers = {"User-Agent": self.user_agent}
-            resp = requests.get(
-                "https://www.sec.gov/files/company_tickers.json",
-                headers=headers,
-                timeout=settings.sec_request_timeout,
-            )
-            if resp.status_code == 200:
-                data = resp.json()
+            resp = self._request_with_retry("https://www.sec.gov/files/company_tickers.json")
+            if resp is not None and resp.status_code == 200:
+                try:
+                    data = resp.json()
+                except Exception as e:
+                    logger.error(f"Failed to parse SEC ticker directory JSON: {e}")
+                    return None
                 new_cache: Dict[str, str] = {}
                 for item in data.values():
-                    t = str(item.get("ticker", "")).strip().upper()
-                    c = str(item.get("cik_str", "")).zfill(10)
-                    if t and c:
-                        new_cache[t] = c
+                    if isinstance(item, dict):
+                        t = str(item.get("ticker", "")).strip().upper()
+                        c = str(item.get("cik_str", "")).zfill(10)
+                        if t and c:
+                            new_cache[t] = c
                 self._cik_cache.update(new_cache)
                 try:
                     with open(cache_file, "w", encoding="utf-8") as f:
@@ -155,32 +216,25 @@ class SECEdgarClient:
                     logger.warning(f"Could not persist CIK cache file: {e}")
 
                 return self._cik_cache.get(clean_ticker)
-            else:
-                logger.error(f"SEC ticker directory returned HTTP {resp.status_code}")
         except Exception as e:
             logger.error(f"Error resolving CIK for ticker {ticker}: {e}")
 
         return None
 
     def get_company_facts(self, cik: str) -> Optional[Dict[str, Any]]:
-        """Retrieves raw company facts JSON from SEC EDGAR API."""
+        """Retrieves raw company facts JSON from SEC EDGAR API with retries on transient failures."""
         padded_cik = str(cik).zfill(10)
         url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{padded_cik}.json"
         
         try:
-            self._throttle()
             logger.info(f"Requesting SEC Company Facts for CIK {padded_cik}")
-            resp = self.session.get(url, timeout=settings.sec_request_timeout)
-            if resp.status_code == 200:
-                return resp.json()
-            elif resp.status_code == 404:
-                logger.warning(f"No SEC Company Facts found for CIK {padded_cik} (HTTP 404)")
-                return None
-            else:
-                logger.error(f"SEC API returned HTTP {resp.status_code} for CIK {padded_cik}")
-                return None
-        except requests.Timeout:
-            logger.error(f"Timeout querying SEC facts for CIK {padded_cik}")
+            resp = self._request_with_retry(url)
+            if resp is not None and resp.status_code == 200:
+                try:
+                    return resp.json()
+                except Exception as e:
+                    logger.error(f"Malformed JSON in SEC facts response for CIK {padded_cik}: {e}")
+                    return None
             return None
         except Exception as e:
             logger.error(f"Exception fetching SEC facts for CIK {padded_cik}: {e}")

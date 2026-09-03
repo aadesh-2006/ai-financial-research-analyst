@@ -30,23 +30,27 @@ class ResearchRepository:
             valuation_signal=valuation_signal,
             payload=payload,
         )
-        self.db.add(report)
-        self.db.flush()  # Generate report.id for source foreign keys
+        try:
+            self.db.add(report)
+            self.db.flush()  # Generate report.id for source foreign keys
 
-        for s in sources:
-            source_rec = ResearchSourceRecord(
-                research_report_id=report.id,
-                provider=s.get("provider", "UNKNOWN"),
-                title=s.get("title", ""),
-                url=s.get("url"),
-                published_at=str(s.get("published_at")) if s.get("published_at") else None,
-                source_type=s.get("source_type", "filing"),
-            )
-            self.db.add(source_rec)
+            for s in sources:
+                source_rec = ResearchSourceRecord(
+                    research_report_id=report.id,
+                    provider=s.get("provider", "UNKNOWN"),
+                    title=s.get("title", ""),
+                    url=s.get("url"),
+                    published_at=str(s.get("published_at")) if s.get("published_at") else None,
+                    source_type=s.get("source_type", "filing"),
+                )
+                self.db.add(source_rec)
 
-        self.db.commit()
-        self.db.refresh(report)
-        return report
+            self.db.commit()
+            self.db.refresh(report)
+            return report
+        except Exception:
+            self.db.rollback()
+            raise
 
     def list_by_ticker(self, ticker: str, limit: int = 50) -> List[ResearchReportRecord]:
         """Returns research reports for a company ticker, ordered by most recent."""

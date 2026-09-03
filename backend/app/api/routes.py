@@ -1,7 +1,7 @@
 """FastAPI route definitions for the financial intelligence platform."""
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Path, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.errors import APIError
@@ -226,7 +226,7 @@ async def generate_research(
 async def list_companies(
     company_repo: CompanyRepository = Depends(get_company_repo),
     analysis_repo: AnalysisRepository = Depends(get_analysis_repo),
-    limit: int = 20,
+    limit: int = Query(default=20, ge=1, le=100, description="Max number of recent companies to return (1-100)"),
 ) -> List[CompanySummary]:
     """Returns recently analyzed companies with their latest status."""
     companies = company_repo.list_recent(limit=limit)
@@ -259,19 +259,26 @@ async def list_companies(
     response_model=List[AnalysisSnapshotSummary],
     status_code=status.HTTP_200_OK,
     responses={
+        400: {"model": ErrorResponse, "description": "Invalid ticker symbol format"},
         404: {"model": ErrorResponse, "description": "Company ticker not found"},
     },
     summary="List Analysis Snapshots for a Company",
     description="Returns chronological analysis snapshots recorded for the given ticker.",
 )
 async def list_company_analyses(
-    ticker: str,
+    ticker: str = Path(..., min_length=1, max_length=10, description="Company ticker symbol (e.g. AAPL, MSFT)"),
     company_repo: CompanyRepository = Depends(get_company_repo),
     analysis_repo: AnalysisRepository = Depends(get_analysis_repo),
-    limit: int = 50,
+    limit: int = Query(default=50, ge=1, le=200, description="Max number of historical snapshots (1-200)"),
 ) -> List[AnalysisSnapshotSummary]:
     """Returns analysis history snapshots for a given company ticker."""
     clean_ticker = ticker.strip().upper()
+    if not all(c.isalnum() or c in ".-" for c in clean_ticker):
+        raise APIError(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            code="INVALID_REQUEST",
+            message=f"Invalid ticker symbol format: '{ticker}'",
+        )
     company = company_repo.get_by_ticker(clean_ticker)
     if not company:
         raise APIError(
@@ -303,19 +310,26 @@ async def list_company_analyses(
     response_model=List[ResearchReportSummary],
     status_code=status.HTTP_200_OK,
     responses={
+        400: {"model": ErrorResponse, "description": "Invalid ticker symbol format"},
         404: {"model": ErrorResponse, "description": "Company ticker not found"},
     },
     summary="List Research Reports for a Company",
     description="Returns historical AI research reports generated for the given ticker.",
 )
 async def list_company_research(
-    ticker: str,
+    ticker: str = Path(..., min_length=1, max_length=10, description="Company ticker symbol (e.g. AAPL, NVDA)"),
     company_repo: CompanyRepository = Depends(get_company_repo),
     research_repo: ResearchRepository = Depends(get_research_repo),
-    limit: int = 50,
+    limit: int = Query(default=50, ge=1, le=200, description="Max number of research reports (1-200)"),
 ) -> List[ResearchReportSummary]:
     """Returns research memo history for a given company ticker."""
     clean_ticker = ticker.strip().upper()
+    if not all(c.isalnum() or c in ".-" for c in clean_ticker):
+        raise APIError(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            code="INVALID_REQUEST",
+            message=f"Invalid ticker symbol format: '{ticker}'",
+        )
     company = company_repo.get_by_ticker(clean_ticker)
     if not company:
         raise APIError(

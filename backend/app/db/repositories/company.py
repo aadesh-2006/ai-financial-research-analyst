@@ -61,9 +61,13 @@ class CompanyRepository:
             if description is not None:
                 company.description = description
 
-        self.db.commit()
-        self.db.refresh(company)
-        return company
+        try:
+            self.db.commit()
+            self.db.refresh(company)
+            return company
+        except Exception:
+            self.db.rollback()
+            raise
 
     def list_recent(self, limit: int = 20) -> List[Company]:
         """Returns companies ordered by most recent update."""

@@ -36,10 +36,13 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 def get_db() -> Generator[Session, None, None]:
     """
     FastAPI dependency yielding a SQLAlchemy session.
-    Guarantees session cleanup on request termination.
+    Guarantees transaction rollback on error and session cleanup on request termination.
     """
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
