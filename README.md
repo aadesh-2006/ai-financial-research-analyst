@@ -378,9 +378,45 @@ The entire stack is containerized using multi-stage production Dockerfiles and o
    # Stop containers while preserving database volume
    docker compose down
 
-   # Stop and erase persistent database volume
-   docker compose down -v
-   ```
+### Docker Verification & Host Environment Status
+
+> [!NOTE]
+> **Host Environment Status**: Docker CLI / daemon is not installed on this local development Windows machine. Consequently, live container runtime execution could not be performed on this host and is reported as **UNVERIFIED on this machine**.
+> All Docker configurations (`backend/Dockerfile`, `frontend/Dockerfile`, `frontend/nginx.conf`, `backend/scripts/start.sh`, and `docker-compose.yml`) are fully implemented and structured according to standard production OCI specifications.
+
+#### Step-by-Step Verification on Any Docker-Enabled Machine:
+```bash
+# 1. Prepare environment configuration from template
+cp .env.example .env
+# Edit .env to set POSTGRES_PASSWORD, POSTGRES_USER, OPENAI_API_KEY, and SEC_USER_AGENT
+
+# 2. Build and start the containerized stack
+docker compose up --build -d
+
+# 3. Inspect container health status (db, backend, frontend)
+docker compose ps
+
+# 4. Verify automatic Alembic migrations in backend startup logs
+docker compose logs backend | grep -i "alembic"
+
+# 5. Verify backend health check
+curl -f http://localhost:8000/api/health
+
+# 6. Test quantitative analysis API endpoint
+curl -X POST http://localhost:8000/api/analyze \
+     -H "Content-Type: application/json" \
+     -d '{"ticker": "AAPL"}'
+
+# 7. Test history persistence API endpoint
+curl http://localhost:8000/api/companies
+
+# 8. Test frontend web UI and reverse proxy on Port 80
+curl -I http://localhost/
+
+# 9. Verify PostgreSQL volume persistence across container restarts
+docker compose restart db backend
+curl http://localhost:8000/api/companies/AAPL/analyses
+```
 
 ### Production Deployment Architectures
 
