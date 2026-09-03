@@ -309,7 +309,90 @@ The persistence layer is implemented using SQLAlchemy 2.x, Psycopg 3, and Alembi
 
 ---
 
-## 8. Project Roadmap
+---
+
+## 8. Milestone 9: Docker Containerization & Production Deployment
+
+The entire stack is containerized using multi-stage production Dockerfiles and orchestrated via `docker-compose.yml`.
+
+```
+                  +----------------------------------------------------+
+                  |                    User Browser                    |
+                  +-------------------------+--------------------------+
+                                            |
+                                            v (HTTP / :80)
+                  +----------------------------------------------------+
+                  |        frontend: React + Vite + Nginx 1.27         |
+                  |     (Static Asset Delivery & /api/ Reverse Proxy)  |
+                  +-------------------------+--------------------------+
+                                            |
+                                            v (HTTP / :8000)
+                  +----------------------------------------------------+
+                  |           backend: FastAPI + Python 3.12           |
+                  |      (Auto-migration on start via Alembic)        |
+                  +------------+--------------------+------------------+
+                               |                    |
+                               v                    v
+                  +--------------------+   +---------------------------+
+                  |  db: PostgreSQL 17 |   |   External Data APIs      |
+                  |  (pgdata volume)   |   | (SEC, yfinance, OpenAI)   |
+                  +--------------------+   +---------------------------+
+```
+
+### Prerequisites
+- [Docker Engine & Docker Compose](https://docs.docker.com/get-docker/) (v24.0+ / Compose v2.20+)
+- An OpenAI API Key (for qualitative synthesis reports)
+
+### Quickstart with Docker Compose
+
+1. **Configure Environment Variables**:
+   Copy the provided `.env.example` template:
+   ```bash
+   cp .env.example .env
+   ```
+   Set your `OPENAI_API_KEY`, `SEC_USER_AGENT`, and custom database credentials if desired.
+
+2. **Build and Start Containerized Stack**:
+   ```bash
+   docker compose up --build -d
+   ```
+   *Note: On backend startup, `./scripts/start.sh` automatically applies Alembic database migrations (`alembic upgrade head`) to the PostgreSQL database before launching Uvicorn.*
+
+3. **Verify Container Health**:
+   ```bash
+   docker compose ps
+   ```
+   - **Frontend UI**: [http://localhost](http://localhost) (Port 80)
+   - **Backend OpenAPI Docs**: [http://localhost:8000/docs](http://localhost:8000/docs) (Port 8000)
+   - **Health Endpoint**: [http://localhost:8000/api/health](http://localhost:8000/api/health)
+
+4. **Inspect Logs**:
+   ```bash
+   docker compose logs -f backend
+   docker compose logs -f frontend
+   docker compose logs -f db
+   ```
+
+5. **Stop Services**:
+   ```bash
+   # Stop containers while preserving database volume
+   docker compose down
+
+   # Stop and erase persistent database volume
+   docker compose down -v
+   ```
+
+### Production Deployment Architectures
+
+| Deployment Mode | Frontend Serving | Backend Serving | Persistence |
+| :--- | :--- | :--- | :--- |
+| **Local Development** | Vite Dev Server (`:5173`) | Uvicorn reload (`:8000`) | Local SQLite / Postgres |
+| **Local Docker Compose** | Nginx Alpine container (`:80`) | Uvicorn slim container (`:8000`) | Named Docker volume `pgdata` |
+| **Cloud Production** | CDN / S3 / Cloud Storage / Nginx | Container Service (Cloud Run / ECS / K8s) | Managed RDS / Cloud SQL Postgres |
+
+---
+
+## 9. Project Roadmap
 
 - [x] **Milestone 0**: Environment inspection, architecture blueprint, and schema design.
 - [x] **Milestone 1**: Data ingestion pipeline (SEC EDGAR, yfinance, News) & normalization.
@@ -320,4 +403,4 @@ The persistence layer is implemented using SQLAlchemy 2.x, Psycopg 3, and Alembi
 - [x] **Milestone 6**: React + TypeScript + Tailwind dashboard with Recharts.
 - [x] **Milestone 7**: PostgreSQL persistence and history endpoints.
 - [x] **Milestone 8**: Reliability, error handling, and production hardening.
-- [ ] **Milestone 9**: Docker containerization and final deployment documentation.
+- [x] **Milestone 9**: Docker containerization, deployment, and production delivery.

@@ -1,5 +1,6 @@
-"""App configuration module."""
-from typing import Optional
+import json
+from typing import Any, List, Optional
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,13 +22,27 @@ class Settings(BaseSettings):
     openai_temperature: float = 0.2
     openai_timeout: int = 45
     
-    # CORS Configuration (configurable for React/Vite dev servers)
-    cors_allowed_origins: list[str] = [
+    # CORS Configuration (configurable for React/Vite dev servers and Docker networks)
+    cors_allowed_origins: List[str] = [
         "http://localhost:3000",
         "http://localhost:5173",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
+        "http://localhost",
+        "http://localhost:80",
     ]
+    
+    @field_validator("cors_allowed_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: Any) -> List[str]:
+        if isinstance(v, str):
+            if v.startswith("[") and v.endswith("]"):
+                try:
+                    return json.loads(v)
+                except Exception:
+                    pass
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
     
     # Database Configuration (PostgreSQL / SQLite fallback for tests)
     database_url: str = "sqlite:///./data_cache/financial_analyst.db"
