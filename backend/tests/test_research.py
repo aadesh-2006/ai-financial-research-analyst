@@ -386,6 +386,37 @@ def test_valid_structured_llm_response_parses_successfully(sample_mock_report):
         assert report.dcf_interpretation.model_upside_downside_pct == 265.3
 
 
+def test_gemini_timeout_converted_to_milliseconds(sample_mock_report):
+    """Verifies that timeout in seconds is converted to milliseconds for types.HttpOptions."""
+    with patch("app.research.llm.genai.Client") as mock_genai_client:
+        mock_candidate = MagicMock()
+        mock_candidate.finish_reason = "STOP"
+        mock_response = MagicMock()
+        mock_response.candidates = [mock_candidate]
+        mock_response.parsed = sample_mock_report
+
+        client_instance = MagicMock()
+        client_instance.models.generate_content.return_value = mock_response
+        mock_genai_client.return_value = client_instance
+
+        # Explicit timeout of 30 seconds
+        call_structured_research_llm("Context text", "ACME", "Acme Corp", api_key="fake-key", timeout=30)
+        assert mock_genai_client.call_count == 1
+        call_kwargs = mock_genai_client.call_args.kwargs
+        http_opts = call_kwargs.get("http_options")
+        assert http_opts is not None
+        assert http_opts.timeout == 30000  # 30s -> 30,000ms
+
+        # Default settings timeout (45 seconds)
+        mock_genai_client.reset_mock()
+        call_structured_research_llm("Context text", "ACME", "Acme Corp", api_key="fake-key", timeout=None)
+        assert mock_genai_client.call_count == 1
+        call_kwargs = mock_genai_client.call_args.kwargs
+        http_opts = call_kwargs.get("http_options")
+        assert http_opts is not None
+        assert http_opts.timeout == 45000  # 45s -> 45,000ms
+
+
 # ==============================================================================
 # 5. HALLUCINATION GUARDRAIL TESTS (CRITICAL REQUIREMENT)
 # ==============================================================================

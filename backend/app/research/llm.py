@@ -61,7 +61,9 @@ def call_structured_research_llm(
 
     logger.info(f"Invoking Google Gemini structured research synthesis for {ticker} using {chosen_model}")
 
-    client = genai.Client(api_key=effective_key, http_options=types.HttpOptions(timeout=float(req_timeout)))
+    # google.genai.types.HttpOptions.timeout expects milliseconds
+    timeout_ms = int(req_timeout * 1000)
+    client = genai.Client(api_key=effective_key, http_options=types.HttpOptions(timeout=timeout_ms))
     user_prompt = build_user_prompt(context_text, ticker, company_name)
 
     config = types.GenerateContentConfig(
