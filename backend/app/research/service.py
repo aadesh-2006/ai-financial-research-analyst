@@ -157,7 +157,7 @@ class ResearchService:
         Executes end-to-end research generation:
         1. Builds grounded context dictionary
         2. Formats markdown briefing
-        3. Invokes OpenAI structured completions
+        3. Invokes Google Gemini structured completions
         4. Validates and aligns against deterministic ground truth
         """
         ticker = company_data.ticker
@@ -170,7 +170,7 @@ class ResearchService:
         # 2. Format context text
         context_text = format_context_as_text(context)
 
-        # 3. Call OpenAI with structured Pydantic format
+        # 3. Call Google Gemini with structured Pydantic format
         raw_report = call_structured_research_llm(
             context_text=context_text,
             ticker=ticker,
@@ -196,7 +196,7 @@ def main():
     parser = argparse.ArgumentParser(description="Generate Institutional Investment Research Report.")
     parser.add_argument("ticker", type=str, help="Stock ticker symbol (e.g. AAPL, NVDA, JPM)")
     parser.add_argument("--json", action="store_true", help="Output full report as structured JSON")
-    parser.add_argument("--model", type=str, default=None, help="OpenAI model override (e.g. gpt-4o)")
+    parser.add_argument("--model", type=str, default=None, help="Gemini model override (e.g. gemini-2.5-flash)")
     args = parser.parse_args()
 
     from app.data.orchestrator import DataOrchestrator
@@ -223,8 +223,8 @@ def main():
             model=args.model,
         )
     except LLMKeyMissingError as e:
-        print(f"\n[!] OPENAI_API_KEY Missing:\n    {e}\n", file=sys.stderr)
-        print("Note: To run live LLM synthesis, set $env:OPENAI_API_KEY='your-key'.")
+        print(f"\n[!] GEMINI_API_KEY Missing:\n    {e}\n", file=sys.stderr)
+        print("Note: To run live LLM synthesis, set $env:GEMINI_API_KEY='your-key'.")
         print("Deterministic financial analysis and DCF calculations remain fully operational.\n")
         sys.exit(0)
     except ResearchLLMError as e:

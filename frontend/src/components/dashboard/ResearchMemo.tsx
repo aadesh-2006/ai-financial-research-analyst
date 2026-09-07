@@ -40,7 +40,7 @@ export const ResearchMemo: React.FC<ResearchMemoProps> = ({
             <h3 className="text-lg font-bold text-white tracking-tight">
               Institutional AI Investment Research Memo
             </h3>
-            <Badge variant="purple">OpenAI Structured Output</Badge>
+            <Badge variant="purple">Gemini Structured Output</Badge>
           </div>
           <p className="text-xs text-terminal-muted">
             Grounded qualitative synthesis interpreting deterministic filings, ratios, news, and DCF models.
@@ -89,7 +89,7 @@ export const ResearchMemo: React.FC<ResearchMemoProps> = ({
               Synthesizing Grounded Research Memo for {ticker}...
             </div>
             <p className="text-xs text-terminal-dim mt-1 max-w-md">
-              Context builder assembling 9 briefing sections. OpenAI generating structured investment thesis, risk matrix, and verified citations.
+              Context builder assembling 9 briefing sections. Google Gemini generating structured investment thesis, risk matrix, and verified citations.
             </p>
           </div>
         </div>

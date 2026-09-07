@@ -62,8 +62,8 @@ def register_exception_handlers(app: FastAPI) -> None:
         logger.warning(f"LLMKeyMissingError on {request.url.path}: {exc}")
         return build_error_response(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            code="OPENAI_API_KEY_MISSING",
-            message="AI research synthesis is unavailable because OPENAI_API_KEY is not configured.",
+            code="GEMINI_API_KEY_MISSING",
+            message="AI research synthesis is unavailable because GEMINI_API_KEY is not configured.",
         )
 
     @app.exception_handler(LLMAPIError)
@@ -73,24 +73,24 @@ def register_exception_handlers(app: FastAPI) -> None:
         if "rate limit" in exc_str:
             return build_error_response(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                code="OPENAI_RATE_LIMIT",
-                message="OpenAI rate limit exceeded. Please try again shortly.",
+                code="GEMINI_RATE_LIMIT",
+                message="Gemini rate limit or quota exceeded. Please try again shortly.",
             )
         elif "timeout" in exc_str:
             return build_error_response(
                 status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                code="OPENAI_TIMEOUT",
+                code="GEMINI_TIMEOUT",
                 message="AI research service request timed out.",
             )
         elif "authentication" in exc_str:
             return build_error_response(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                code="OPENAI_AUTH_ERROR",
+                code="GEMINI_AUTH_ERROR",
                 message="Authentication failure with AI research provider.",
             )
         return build_error_response(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            code="OPENAI_API_ERROR",
+            code="GEMINI_API_ERROR",
             message="Upstream AI research service encountered a communication error.",
         )
 

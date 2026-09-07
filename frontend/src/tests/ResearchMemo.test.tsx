@@ -91,15 +91,15 @@ describe("ResearchMemo Component", () => {
       <ResearchMemo
         report={null}
         isLoading={false}
-        error="OPENAI_API_KEY is not configured."
-        errorCode="OPENAI_API_KEY_MISSING"
+        error="GEMINI_API_KEY is not configured."
+        errorCode="GEMINI_API_KEY_MISSING"
         onGenerate={vi.fn()}
         ticker="AAPL"
       />
     );
 
-    expect(screen.getByText(/OPENAI_API_KEY_MISSING/i)).toBeInTheDocument();
-    expect(screen.getByText(/OPENAI_API_KEY is not configured/i)).toBeInTheDocument();
+    expect(screen.getByText(/GEMINI_API_KEY_MISSING/i)).toBeInTheDocument();
+    expect(screen.getByText(/GEMINI_API_KEY is not configured/i)).toBeInTheDocument();
   });
 
   it("renders complete investment memo when report is supplied", () => {

@@ -12,8 +12,8 @@ pandas>=2.2.0
 pytest>=8.3.0
 pytest-mock>=3.14.0
 
-# LLM Synthesis Layer
-openai>=1.50.0
+# LLM Synthesis Layer (Google Gemini)
+google-genai>=1.0.0
 
 # Web Framework & API Layer
 fastapi>=0.115.0

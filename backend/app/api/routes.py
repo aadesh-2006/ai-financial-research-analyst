@@ -150,7 +150,7 @@ async def analyze_company(
         404: {"model": ErrorResponse, "description": "Ticker data not found"},
         500: {"model": ErrorResponse, "description": "Database persistence error"},
         502: {"model": ErrorResponse, "description": "Upstream data or LLM communication error"},
-        503: {"model": ErrorResponse, "description": "OPENAI_API_KEY missing or service unavailable"},
+        503: {"model": ErrorResponse, "description": "GEMINI_API_KEY missing or service unavailable"},
         504: {"model": ErrorResponse, "description": "Upstream LLM timeout"},
     },
     summary="Grounded AI Investment Research Memo",

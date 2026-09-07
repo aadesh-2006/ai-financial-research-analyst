@@ -58,12 +58,12 @@ A modular, production-quality financial intelligence platform combining multi-so
                                      └───────────────┬───────────────┘
                                                      │
                                                      ▼
-                                     ┌───────────────────────────────┐
-                                     │   OpenAI Structured Outputs   │
-                                     │      (gpt-4o-mini / gpt-4o)   │
-                                     │   - 11 Grounding Rules        │
-                                     │   - Zero Financial Math       │
-                                     └───────────────┬───────────────┘
+                                      ┌───────────────────────────────┐
+                                      │   Gemini Structured Outputs   │
+                                      │ (gemini-2.5-flash / 2.5-pro)  │
+                                      │   - 11 Grounding Rules        │
+                                      │   - Zero Financial Math       │
+                                      └───────────────┬───────────────┘
                                                      │
                                                      ▼
                                      ┌───────────────────────────────┐
@@ -113,7 +113,7 @@ Lightweight health check for liveness probes. Does **not** require external API 
 
 #### 2. `POST /api/analyze`
 Executes multi-source data ingestion and deterministic financial calculations.
-- **Independence**: Fully operational **without** `OPENAI_API_KEY`.
+- **Independence**: Fully operational **without** `GEMINI_API_KEY`.
 - **Payload**:
   ```json
   { "ticker": "AAPL" }
@@ -133,16 +133,16 @@ All errors return consistent, sanitized JSON payloads:
 ```json
 {
   "error": {
-    "code": "OPENAI_API_KEY_MISSING",
-    "message": "AI research synthesis is unavailable because OPENAI_API_KEY is not configured."
+    "code": "GEMINI_API_KEY_MISSING",
+    "message": "AI research synthesis is unavailable because GEMINI_API_KEY is not configured."
   }
 }
 ```
 - **`400 Bad Request` (`INVALID_REQUEST`)**: Malformed payload, empty ticker, or invalid ticker characters.
 - **`404 Not Found` (`TICKER_NOT_FOUND`)**: Upstream data providers have no record or filings for the requested symbol.
-- **`502 Bad Gateway` (`UPSTREAM_DATA_ERROR` / `OPENAI_API_ERROR`)**: Upstream network failure to SEC EDGAR, market quotes, or OpenAI servers.
-- **`503 Service Unavailable` (`OPENAI_API_KEY_MISSING` / `OPENAI_RATE_LIMIT`)**: Missing credentials or OpenAI quota exhaustion.
-- **`504 Gateway Timeout` (`OPENAI_TIMEOUT`)**: Upstream LLM provider request timeout.
+- **`502 Bad Gateway` (`UPSTREAM_DATA_ERROR` / `GEMINI_API_ERROR` / `GEMINI_AUTH_ERROR`)**: Upstream network failure to SEC EDGAR, market quotes, or Google Gemini servers.
+- **`503 Service Unavailable` (`GEMINI_API_KEY_MISSING` / `GEMINI_RATE_LIMIT`)**: Missing credentials or Gemini quota exhaustion.
+- **`504 Gateway Timeout` (`GEMINI_TIMEOUT`)**: Upstream LLM provider request timeout.
 - **`500 Internal Server Error` (`INTERNAL_SERVER_ERROR`)**: Unexpected exceptions. Stack traces and internal secrets are logged server-side and never leaked.
 
 ### C. CORS Configuration
@@ -188,12 +188,12 @@ The LLM integration is bound by an explicit 11-rule prompt contract and determin
 ### C. Environment Configuration
 The research layer is configured via environment variables or `.env`:
 ```ini
-OPENAI_API_KEY=sk-...           # Required for live LLM synthesis
-OPENAI_MODEL=gpt-4o-mini        # Default model (configurable to gpt-4o)
-OPENAI_TEMPERATURE=0.2          # Low temperature for analytical consistency
-OPENAI_TIMEOUT=45               # Request timeout in seconds
+GEMINI_API_KEY=your_gemini_api_key_here     # Required for live LLM synthesis
+GEMINI_MODEL=gemini-2.5-flash               # Default model (configurable to gemini-2.5-pro)
+GEMINI_TEMPERATURE=0.2                     # Low temperature for analytical consistency
+GEMINI_TIMEOUT=45                          # Request timeout in seconds
 ```
-*If `OPENAI_API_KEY` is not provided, the application gracefully reports the missing key without crashing, preserving full access to deterministic data ingestion, financial ratios, and DCF calculations.*
+*If `GEMINI_API_KEY` is not provided, the application gracefully reports the missing key without crashing, preserving full access to deterministic data ingestion, financial ratios, and DCF calculations.*
 
 ---
 
@@ -302,10 +302,10 @@ The persistence layer is implemented using SQLAlchemy 2.x, Psycopg 3, and Alembi
 ## 7. Milestone 8: Reliability, Resilience & Production Hardening
 
 - **Upstream SEC EDGAR Retries**: Bounded exponential backoff (max 3 attempts) for transient errors (429, 500, 502, 503, 504, Timeouts, ConnectionErrors) with immediate return on non-retryable 4xx.
-- **OpenAI Transient Error Retries**: Bounded retry loop for `RateLimitError`, `APITimeoutError`, `APIConnectionError`, and `InternalServerError` while failing immediately on non-transient `AuthenticationError`.
+- **Gemini Transient Error Retries**: Bounded retry loop for `APIError` (429 Rate Limit / Quota Exhaustion, 500, 503, 504), Timeouts, and Connection Errors while failing immediately on non-transient authentication failures.
 - **Database Transaction Safety**: All repository operations and database dependencies wrap transactions with explicit `rollback()` handlers to prevent broken/dirty sessions.
 - **API Input Bounds & Validation**: Query limit bounds (`1-100` for companies, `1-200` for snapshots/research) and strict alphanumeric ticker format validation.
-- **Secret & Credential Masking**: Automated `SensitiveDataFilter` scrubs API keys (`sk-...`), connection passwords, and Bearer tokens from server logs and error messages.
+- **Secret & Credential Masking**: Automated `SensitiveDataFilter` scrubs API keys (`AIza...`, `sk-...`), connection passwords, and Bearer tokens from server logs and error messages.
 
 ---
 
@@ -335,13 +335,13 @@ The entire stack is containerized using multi-stage production Dockerfiles and o
                                v                    v
                   +--------------------+   +---------------------------+
                   |  db: PostgreSQL 17 |   |   External Data APIs      |
-                  |  (pgdata volume)   |   | (SEC, yfinance, OpenAI)   |
+                  |  (pgdata volume)   |   | (SEC, yfinance, Gemini)   |
                   +--------------------+   +---------------------------+
 ```
 
 ### Prerequisites
 - [Docker Engine & Docker Compose](https://docs.docker.com/get-docker/) (v24.0+ / Compose v2.20+)
-- An OpenAI API Key (for qualitative synthesis reports)
+- A Google Gemini API Key (for qualitative synthesis reports)
 
 ### Quickstart with Docker Compose
 
@@ -350,7 +350,7 @@ The entire stack is containerized using multi-stage production Dockerfiles and o
    ```bash
    cp .env.example .env
    ```
-   Set your `OPENAI_API_KEY`, `SEC_USER_AGENT`, and custom database credentials if desired.
+   Set your `GEMINI_API_KEY`, `SEC_USER_AGENT`, and custom database credentials if desired.
 
 2. **Build and Start Containerized Stack**:
    ```bash
@@ -388,7 +388,7 @@ The entire stack is containerized using multi-stage production Dockerfiles and o
 ```bash
 # 1. Prepare environment configuration from template
 cp .env.example .env
-# Edit .env to set POSTGRES_PASSWORD, POSTGRES_USER, OPENAI_API_KEY, and SEC_USER_AGENT
+# Edit .env to set POSTGRES_PASSWORD, POSTGRES_USER, GEMINI_API_KEY, and SEC_USER_AGENT
 
 # 2. Build and start the containerized stack
 docker compose up --build -d
@@ -434,7 +434,7 @@ curl http://localhost:8000/api/companies/AAPL/analyses
 - [x] **Milestone 1**: Data ingestion pipeline (SEC EDGAR, yfinance, News) & normalization.
 - [x] **Milestone 2**: Deterministic financial analysis engine (growth, margins, leverage, cash flow, health).
 - [x] **Milestone 3**: Valuation engine (DCF, WACC, Terminal Value, 2D sensitivity analysis, sector gating).
-- [x] **Milestone 4**: Grounded LLM research layer (OpenAI structured outputs, 11 grounding rules, memo).
+- [x] **Milestone 4**: Grounded LLM research layer (Google Gemini structured outputs, 11 grounding rules, memo).
 - [x] **Milestone 5**: FastAPI backend endpoints (`/api/analyze`, `/api/health`, `/api/research`).
 - [x] **Milestone 6**: React + TypeScript + Tailwind dashboard with Recharts.
 - [x] **Milestone 7**: PostgreSQL persistence and history endpoints.

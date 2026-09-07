@@ -5,7 +5,6 @@ import pytest
 import requests
 from fastapi import status
 from fastapi.testclient import TestClient
-import openai
 
 from app.api.routes import get_orchestrator, get_financial_engine, get_research_service, get_company_repo
 from app.data.orchestrator import DataOrchestrator
@@ -155,12 +154,13 @@ def test_orchestrator_total_failure_raises_value_error():
 
 
 # ===========================================================================
-# 3. OpenAI / Research Layer Reliability & Transient Retries
+# 3. Google Gemini / Research Layer Reliability & Transient Retries
 # ===========================================================================
 
-def test_openai_transient_rate_limit_retry_and_success():
-    """Verifies that OpenAI rate limit error triggers retry and returns report upon recovery."""
+def test_gemini_transient_rate_limit_retry_and_success():
+    """Verifies that Gemini rate limit / quota error triggers retry and returns report upon recovery."""
     from app.research.schemas import ResearchReport, ReportConfidence, DCFInterpretation
+    from google.genai.errors import APIError
 
     mock_report = ResearchReport(
         ticker="AAPL",
@@ -184,77 +184,69 @@ def test_openai_transient_rate_limit_retry_and_success():
         disclaimer="Notice.",
     )
 
-    mock_msg = MagicMock()
-    mock_msg.refusal = None
-    mock_msg.parsed = mock_report
-    mock_choice = MagicMock()
-    mock_choice.message = mock_msg
-    mock_completion = MagicMock()
-    mock_completion.choices = [mock_choice]
+    mock_candidate = MagicMock()
+    mock_candidate.finish_reason = "STOP"
+    mock_response = MagicMock()
+    mock_response.candidates = [mock_candidate]
+    mock_response.parsed = mock_report
 
     mock_client = MagicMock()
-    # 1st call fails with RateLimitError, 2nd succeeds
-    mock_client.beta.chat.completions.parse.side_effect = [
-        openai.RateLimitError(
-            message="Rate limit reached",
-            response=MagicMock(status_code=429, headers={}),
-            body=None,
-        ),
-        mock_completion,
+    # 1st call fails with 429 APIError, 2nd succeeds
+    rate_limit_error = APIError(429, {"error": {"message": "Resource has been exhausted (e.g. check quota)."}})
+    mock_client.models.generate_content.side_effect = [
+        rate_limit_error,
+        mock_response,
     ]
 
-    with patch("app.research.llm.OpenAI", return_value=mock_client):
+    with patch("app.research.llm.genai.Client", return_value=mock_client):
         with patch("time.sleep"):
             report = call_structured_research_llm(
                 context_text="Financial Context",
                 ticker="AAPL",
                 company_name="Apple Inc.",
-                api_key="sk-mock-valid-key-1234567890",
+                api_key="AIzaSyMockValidKey1234567890123456789",
             )
             assert report.ticker == "AAPL"
-            assert mock_client.beta.chat.completions.parse.call_count == 2
+            assert mock_client.models.generate_content.call_count == 2
 
 
-def test_openai_authentication_failure_does_not_retry():
-    """Verifies that non-transient AuthenticationError fails immediately without retrying."""
+def test_gemini_authentication_failure_does_not_retry():
+    """Verifies that non-transient Gemini authentication error fails immediately without retrying."""
+    from google.genai.errors import APIError
+
     mock_client = MagicMock()
-    mock_client.beta.chat.completions.parse.side_effect = openai.AuthenticationError(
-        message="Invalid API key",
-        response=MagicMock(status_code=401, headers={}),
-        body=None,
-    )
+    auth_error = APIError(400, {"error": {"message": "API_KEY_INVALID: API key not valid."}})
+    mock_client.models.generate_content.side_effect = auth_error
 
-    with patch("app.research.llm.OpenAI", return_value=mock_client):
+    with patch("app.research.llm.genai.Client", return_value=mock_client):
         with pytest.raises(LLMAPIError, match="Authentication Error"):
             call_structured_research_llm(
                 context_text="Financial Context",
                 ticker="AAPL",
                 company_name="Apple Inc.",
-                api_key="sk-invalid-key-1234567890",
+                api_key="AIzaSyInvalidKey12345678901234567890",
             )
-        assert mock_client.beta.chat.completions.parse.call_count == 1
+        assert mock_client.models.generate_content.call_count == 1
 
 
-def test_openai_model_refusal_raises_parsing_error():
-    """Verifies that safety refusals are cleanly caught as LLMResponseParsingError."""
-    mock_msg = MagicMock()
-    mock_msg.refusal = "Safety policy refusal."
-    mock_msg.parsed = None
-    mock_choice = MagicMock()
-    mock_choice.message = mock_msg
-    mock_completion = MagicMock()
-    mock_completion.choices = [mock_choice]
+def test_gemini_safety_block_raises_parsing_error():
+    """Verifies that safety policy blocks are cleanly caught as LLMResponseParsingError."""
+    mock_candidate = MagicMock()
+    mock_candidate.finish_reason = "SAFETY"
+    mock_response = MagicMock()
+    mock_response.candidates = [mock_candidate]
+    mock_response.parsed = None
 
     mock_client = MagicMock()
-    mock_client.beta.chat.completions.parse.return_value = mock_completion
+    mock_client.models.generate_content.return_value = mock_response
 
-    with patch("app.research.llm.OpenAI", return_value=mock_client):
-        with pytest.raises(LLMResponseParsingError, match="refused"):
+    with patch("app.research.llm.genai.Client", return_value=mock_client):
+        with pytest.raises(LLMResponseParsingError, match="blocked by safety policy"):
             call_structured_research_llm(
                 context_text="Context",
                 ticker="AAPL",
                 company_name="Apple Inc.",
-                api_key="sk-valid-key-1234567890",
+                api_key="AIzaSyMockValidKey1234567890123456789",
             )
 
 
@@ -415,10 +407,19 @@ def test_sensitive_data_filter_scrubs_secrets_from_logs():
     """Verifies that SensitiveDataFilter masks API keys, database URLs with passwords, and Bearer tokens."""
     log_filter = SensitiveDataFilter()
 
-    # 1. OpenAI API key masking
+    # 1. Gemini API key masking
+    rec0 = logging.LogRecord(
+        name="test", level=logging.INFO, pathname="", lineno=0,
+        msg="Calling Gemini with key AIzaSyA1b2C3d4E5f6G7h8I9j0K1L2M3N4O5P6Q7", args=(), exc_info=None
+    )
+    log_filter.filter(rec0)
+    assert "AIza***REDACTED***" in rec0.msg
+    assert "AIzaSyA1b2C3d4E5f6G7h8I9j0K1L2M3N4O5P6Q7" not in rec0.msg
+
+    # 2. Legacy API key masking
     rec1 = logging.LogRecord(
         name="test", level=logging.INFO, pathname="", lineno=0,
-        msg="Calling OpenAI with key sk-1234567890abcdef1234567890", args=(), exc_info=None
+        msg="Calling API with key sk-1234567890abcdef1234567890", args=(), exc_info=None
     )
     log_filter.filter(rec1)
     assert "sk-***REDACTED***" in rec1.msg

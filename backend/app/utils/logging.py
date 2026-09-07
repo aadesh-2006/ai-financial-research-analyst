@@ -10,7 +10,9 @@ class SensitiveDataFilter(logging.Filter):
     passwords, database URLs, and bearer tokens before log emission.
     """
     PATTERNS = [
-        # OpenAI API keys (sk-...)
+        # Google Gemini API keys (AIza...)
+        (re.compile(r"AIza[0-9A-Za-z-_]{35}", re.IGNORECASE), "AIza***REDACTED***"),
+        # Legacy API keys (sk-...)
         (re.compile(r"sk-[a-zA-Z0-9_\-]{15,}", re.IGNORECASE), "sk-***REDACTED***"),
         # Database URLs with user:password@host
         (re.compile(r"(://[^:\s]+):([^@\s]+)@", re.IGNORECASE), r"\1:***REDACTED***@"),

@@ -354,14 +354,14 @@ def test_missing_api_key_handled(sample_company_data, sample_financial_analysis)
     with patch.dict("os.environ", {}, clear=True):
         with pytest.raises(LLMKeyMissingError) as exc_info:
             call_structured_research_llm("Context text", "TEST", "Test Corp", api_key=None)
-        assert "OPENAI_API_KEY is missing" in str(exc_info.value)
+        assert "GEMINI_API_KEY is missing" in str(exc_info.value)
 
 
 def test_api_failure_handled():
-    with patch("app.research.llm.OpenAI") as mock_openai:
+    with patch("app.research.llm.genai.Client") as mock_genai_client:
         client_instance = MagicMock()
-        client_instance.beta.chat.completions.parse.side_effect = Exception("Connection refused by peer")
-        mock_openai.return_value = client_instance
+        client_instance.models.generate_content.side_effect = Exception("Connection refused by peer")
+        mock_genai_client.return_value = client_instance
 
         with pytest.raises(LLMAPIError) as exc_info:
             call_structured_research_llm("Context text", "TEST", "Test Corp", api_key="fake-key")
@@ -369,17 +369,16 @@ def test_api_failure_handled():
 
 
 def test_valid_structured_llm_response_parses_successfully(sample_mock_report):
-    with patch("app.research.llm.OpenAI") as mock_openai:
-        mock_choice = MagicMock()
-        mock_choice.message.refusal = None
-        mock_choice.message.parsed = sample_mock_report
-
-        mock_completion = MagicMock()
-        mock_completion.choices = [mock_choice]
+    with patch("app.research.llm.genai.Client") as mock_genai_client:
+        mock_candidate = MagicMock()
+        mock_candidate.finish_reason = "STOP"
+        mock_response = MagicMock()
+        mock_response.candidates = [mock_candidate]
+        mock_response.parsed = sample_mock_report
 
         client_instance = MagicMock()
-        client_instance.beta.chat.completions.parse.return_value = mock_completion
-        mock_openai.return_value = client_instance
+        client_instance.models.generate_content.return_value = mock_response
+        mock_genai_client.return_value = client_instance
 
         report = call_structured_research_llm("Context text", "ACME", "Acme Corp", api_key="fake-key")
         assert report.ticker == "ACME"

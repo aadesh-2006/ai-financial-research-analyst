@@ -116,7 +116,7 @@ export const App: React.FC = () => {
                   <span>Grounded LLM</span>
                 </div>
                 <p className="text-terminal-dim">
-                  OpenAI structured output synthesis bound by 11 strict grounding rules and verified citations.
+                  Google Gemini structured output synthesis bound by 11 strict grounding rules and verified citations.
                 </p>
               </div>
             </div>

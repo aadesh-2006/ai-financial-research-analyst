@@ -328,8 +328,8 @@ def test_analyze_rejects_malformed_or_empty_ticker(client):
     assert res_invalid.json()["error"]["code"] == "INVALID_REQUEST"
 
 
-def test_analyze_does_not_require_openai_api_key(client, sample_company_data, sample_financial_analysis):
-    """POST /api/analyze runs completely independent of OPENAI_API_KEY."""
+def test_analyze_does_not_require_gemini_api_key(client, sample_company_data, sample_financial_analysis):
+    """POST /api/analyze runs completely independent of GEMINI_API_KEY."""
     mock_orchestrator = MagicMock()
     mock_orchestrator.get_company_data.return_value = sample_company_data
 
@@ -433,10 +433,10 @@ def test_research_with_mocked_service_returns_valid_report(
         app.dependency_overrides.clear()
 
 
-def test_research_handles_missing_openai_api_key_cleanly(
+def test_research_handles_missing_gemini_api_key_cleanly(
     client, sample_company_data, sample_financial_analysis
 ):
-    """POST /api/research returns clean 503 when OPENAI_API_KEY is not configured."""
+    """POST /api/research returns clean 503 when GEMINI_API_KEY is not configured."""
     mock_orchestrator = MagicMock()
     mock_orchestrator.get_company_data.return_value = sample_company_data
 
@@ -444,7 +444,7 @@ def test_research_handles_missing_openai_api_key_cleanly(
     mock_engine.analyze.return_value = sample_financial_analysis
 
     mock_research = MagicMock()
-    mock_research.generate_report.side_effect = LLMKeyMissingError("OPENAI_API_KEY is missing.")
+    mock_research.generate_report.side_effect = LLMKeyMissingError("GEMINI_API_KEY is missing.")
 
     app.dependency_overrides[get_orchestrator] = lambda: mock_orchestrator
     app.dependency_overrides[get_financial_engine] = lambda: mock_engine
@@ -454,16 +454,16 @@ def test_research_handles_missing_openai_api_key_cleanly(
         response = client.post("/api/research", json={"ticker": "AAPL"})
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
         data = response.json()
-        assert data["error"]["code"] == "OPENAI_API_KEY_MISSING"
-        assert "OPENAI_API_KEY" in data["error"]["message"]
+        assert data["error"]["code"] == "GEMINI_API_KEY_MISSING"
+        assert "GEMINI_API_KEY" in data["error"]["message"]
     finally:
         app.dependency_overrides.clear()
 
 
-def test_research_handles_openai_api_failure_cleanly(
+def test_research_handles_gemini_api_failure_cleanly(
     client, sample_company_data, sample_financial_analysis
 ):
-    """POST /api/research maps upstream OpenAI API failure to 502 Bad Gateway."""
+    """POST /api/research maps upstream Gemini API failure to 502 Bad Gateway."""
     mock_orchestrator = MagicMock()
     mock_orchestrator.get_company_data.return_value = sample_company_data
 
@@ -471,7 +471,7 @@ def test_research_handles_openai_api_failure_cleanly(
     mock_engine.analyze.return_value = sample_financial_analysis
 
     mock_research = MagicMock()
-    mock_research.generate_report.side_effect = LLMAPIError("OpenAI Authentication Error: Invalid API key.")
+    mock_research.generate_report.side_effect = LLMAPIError("Gemini Authentication Error: Invalid API key.")
 
     app.dependency_overrides[get_orchestrator] = lambda: mock_orchestrator
     app.dependency_overrides[get_financial_engine] = lambda: mock_engine
@@ -481,7 +481,7 @@ def test_research_handles_openai_api_failure_cleanly(
         response = client.post("/api/research", json={"ticker": "AAPL"})
         assert response.status_code == status.HTTP_502_BAD_GATEWAY
         data = response.json()
-        assert data["error"]["code"] == "OPENAI_AUTH_ERROR"
+        assert data["error"]["code"] == "GEMINI_AUTH_ERROR"
     finally:
         app.dependency_overrides.clear()
 
