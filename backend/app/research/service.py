@@ -196,7 +196,7 @@ def main():
     parser = argparse.ArgumentParser(description="Generate Institutional Investment Research Report.")
     parser.add_argument("ticker", type=str, help="Stock ticker symbol (e.g. AAPL, NVDA, JPM)")
     parser.add_argument("--json", action="store_true", help="Output full report as structured JSON")
-    parser.add_argument("--model", type=str, default=None, help="Gemini model override (e.g. gemini-2.5-flash)")
+    parser.add_argument("--model", type=str, default=None, help="Gemini model override (e.g. gemini-3.6-flash)")
     args = parser.parse_args()
 
     from app.data.orchestrator import DataOrchestrator

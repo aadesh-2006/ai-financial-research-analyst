@@ -417,6 +417,35 @@ def test_gemini_timeout_converted_to_milliseconds(sample_mock_report):
         assert http_opts.timeout == 45000  # 45s -> 45,000ms
 
 
+def test_gemini_default_model_and_env_override(sample_mock_report):
+    """Verifies default model is gemini-3.6-flash and respects env/param overrides."""
+    with patch("app.research.llm.genai.Client") as mock_genai_client:
+        mock_candidate = MagicMock()
+        mock_candidate.finish_reason = "STOP"
+        mock_response = MagicMock()
+        mock_response.candidates = [mock_candidate]
+        mock_response.parsed = sample_mock_report
+
+        client_instance = MagicMock()
+        client_instance.models.generate_content.return_value = mock_response
+        mock_genai_client.return_value = client_instance
+
+        # 1. Default model
+        with patch.dict("os.environ", {}, clear=True):
+            call_structured_research_llm("Context text", "ACME", "Acme Corp", api_key="fake-key")
+            assert client_instance.models.generate_content.call_args.kwargs["model"] == "gemini-3.6-flash"
+
+        # 2. Environment variable override
+        with patch.dict("os.environ", {"GEMINI_MODEL": "gemini-3.6-pro"}, clear=True):
+            call_structured_research_llm("Context text", "ACME", "Acme Corp", api_key="fake-key")
+            assert client_instance.models.generate_content.call_args.kwargs["model"] == "gemini-3.6-pro"
+
+        # 3. Explicit argument override
+        with patch.dict("os.environ", {"GEMINI_MODEL": "gemini-3.6-pro"}, clear=True):
+            call_structured_research_llm("Context text", "ACME", "Acme Corp", api_key="fake-key", model="custom-gemini-model")
+            assert client_instance.models.generate_content.call_args.kwargs["model"] == "custom-gemini-model"
+
+
 # ==============================================================================
 # 5. HALLUCINATION GUARDRAIL TESTS (CRITICAL REQUIREMENT)
 # ==============================================================================

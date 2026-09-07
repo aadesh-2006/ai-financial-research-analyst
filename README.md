@@ -60,7 +60,7 @@ A modular, production-quality financial intelligence platform combining multi-so
                                                      ▼
                                       ┌───────────────────────────────┐
                                       │   Gemini Structured Outputs   │
-                                      │ (gemini-2.5-flash / 2.5-pro)  │
+                                      │ (gemini-3.6-flash / 3.6-pro)  │
                                       │   - 11 Grounding Rules        │
                                       │   - Zero Financial Math       │
                                       └───────────────┬───────────────┘
@@ -189,7 +189,7 @@ The LLM integration is bound by an explicit 11-rule prompt contract and determin
 The research layer is configured via environment variables or `.env`:
 ```ini
 GEMINI_API_KEY=your_gemini_api_key_here     # Required for live LLM synthesis
-GEMINI_MODEL=gemini-2.5-flash               # Default model (configurable to gemini-2.5-pro)
+GEMINI_MODEL=gemini-3.6-flash               # Default model (configurable to gemini-3.6-pro)
 GEMINI_TEMPERATURE=0.2                     # Low temperature for analytical consistency
 GEMINI_TIMEOUT=45                          # Request timeout in seconds
 ```
