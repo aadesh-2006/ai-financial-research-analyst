@@ -553,7 +553,7 @@ def test_response_models_serialize_cleanly(client, sample_company_data, sample_f
 
 
 # ==============================================================================
-# 5. CORS MIDDLEWARE TESTS
+# 5. CORS MIDDLEWARE & CONFIGURATION TESTS
 # ==============================================================================
 
 def test_cors_middleware_allows_configured_origins(client):
@@ -575,3 +575,69 @@ def test_cors_middleware_rejects_disallowed_origins(client):
     }
     response = client.options("/api/analyze", headers=headers)
     assert response.headers.get("access-control-allow-origin") is None
+
+
+def test_cors_config_parsing_from_plain_string(monkeypatch):
+    """Verifies single origin plain string from environment parses to list."""
+    from app.config import Settings
+
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "https://ai-financial-research-analyst.vercel.app")
+    custom_settings = Settings()
+    assert custom_settings.cors_allowed_origins == ["https://ai-financial-research-analyst.vercel.app"]
+
+
+def test_cors_config_parsing_from_comma_separated_string(monkeypatch):
+    """Verifies comma-separated origins from environment parse and trim whitespace."""
+    from app.config import Settings
+
+    monkeypatch.setenv(
+        "CORS_ALLOWED_ORIGINS",
+        "https://ai-financial-research-analyst.vercel.app, http://localhost:5173, https://preview.vercel.app "
+    )
+    custom_settings = Settings()
+    assert custom_settings.cors_allowed_origins == [
+        "https://ai-financial-research-analyst.vercel.app",
+        "http://localhost:5173",
+        "https://preview.vercel.app",
+    ]
+
+
+def test_cors_config_parsing_from_json_array(monkeypatch):
+    """Verifies JSON array string from environment parses correctly."""
+    from app.config import Settings
+
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", '["https://domain1.com", "https://domain2.com"]')
+    custom_settings = Settings()
+    assert custom_settings.cors_allowed_origins == ["https://domain1.com", "https://domain2.com"]
+
+
+def test_cors_config_default_origins_when_unset(monkeypatch):
+    """Verifies default local origins are preserved when CORS_ALLOWED_ORIGINS is not set."""
+    from app.config import Settings
+
+    monkeypatch.delenv("CORS_ALLOWED_ORIGINS", raising=False)
+    custom_settings = Settings()
+    assert "http://localhost:3000" in custom_settings.cors_allowed_origins
+    assert "http://localhost:5173" in custom_settings.cors_allowed_origins
+    assert "http://127.0.0.1:3000" in custom_settings.cors_allowed_origins
+
+
+def test_cors_middleware_with_vercel_origin(monkeypatch):
+    """Verifies that an application configured with Vercel origin headers returns correct CORS."""
+    from app.config import Settings
+    import app.main
+
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "https://ai-financial-research-analyst.vercel.app")
+    new_settings = Settings()
+    monkeypatch.setattr(app.main.settings, "cors_allowed_origins", new_settings.cors_allowed_origins)
+
+    app_with_vercel = app.main.create_app()
+    test_client = TestClient(app_with_vercel, raise_server_exceptions=False)
+
+    headers = {
+        "Origin": "https://ai-financial-research-analyst.vercel.app",
+        "Access-Control-Request-Method": "POST",
+    }
+    response = test_client.options("/api/analyze", headers=headers)
+    assert response.status_code == status.HTTP_200_OK
+    assert response.headers.get("access-control-allow-origin") == "https://ai-financial-research-analyst.vercel.app"
